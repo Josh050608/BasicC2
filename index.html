@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>C2 Command & Control</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        /* 图片模态框样式 */
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white font-mono h-screen flex flex-col overflow-hidden">
+    <div id="app" class="flex flex-col h-full container mx-auto p-4 max-w-7xl">
+        
+        <!-- 头部 -->
+        <header class="mb-6 border-b border-gray-700 pb-4 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                <h1 class="text-2xl font-bold tracking-wider">RED TEAM <span class="text-red-500">C2</span> <span class="text-xs text-gray-500 ml-2">v2.0 (Media Enabled)</span></h1>
+            </div>
+            <div class="flex gap-4 text-sm text-gray-400">
+                <span>在线: <span class="text-green-400 font-bold">{{ activeCount }}</span></span>
+            </div>
+        </header>
+
+        <!-- 主机列表 -->
+        <div class="flex-1 overflow-y-auto pr-2 pb-20">
+            <transition-group name="fade" tag="div" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                <div v-for="agent in agents" :key="agent.id" 
+                     class="bg-gray-800 rounded-lg p-4 border relative group transition-all duration-300 flex flex-col"
+                     :class="agent.status === 'active' ? 'border-green-600 shadow-[0_0_15px_rgba(22,163,74,0.2)]' : 'border-gray-700 opacity-70 grayscale'">
+                    
+                    <button @click="deleteAgent(agent.id)" class="absolute top-2 right-2 text-gray-500 hover:text-red-500 hover:bg-gray-700 rounded-full p-1 transition-colors z-10">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+
+                    <div class="flex items-start gap-3 mb-3 border-b border-gray-700 pb-2">
+                        <div class="p-2 rounded bg-gray-700">
+                            <!-- 根据系统类型显示图标 (模拟) -->
+                            <svg class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        </div>
+                        <div class="overflow-hidden">
+                            <h2 class="text-lg font-bold truncate text-gray-100">{{ agent.hostname }}</h2>
+                            <p class="text-xs text-gray-500 font-mono">{{ agent.ip }}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-between items-center text-xs mb-3">
+                        <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full" :class="agent.status === 'active' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="agent.status === 'active' ? 'bg-green-400' : 'bg-red-400'"></span>
+                            {{ agent.status.toUpperCase() }}
+                        </span>
+                        <span class="text-gray-500">{{ formatTime(agent.last_seen) }}</span>
+                    </div>
+
+                    <!-- 回显区：支持图片 -->
+                    <div class="bg-black/80 rounded p-2 h-48 overflow-y-auto mb-3 font-mono text-xs border border-gray-700/50 relative">
+                        <div v-if="!agent.last_result" class="absolute inset-0 flex items-center justify-center text-gray-600 select-none">
+                            > 等待回显...
+                        </div>
+                        
+                        <!-- 这里的逻辑判断是不是图片 -->
+                        <div v-else-if="agent.last_result.startsWith('[IMAGE]')">
+                            <p class="text-green-500 mb-1">> 接收到屏幕截图:</p>
+                            <img :src="'data:image/png;base64,' + agent.last_result.substring(7)" 
+                                 class="w-full rounded border border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
+                                 @click="showImage('data:image/png;base64,' + agent.last_result.substring(7))">
+                        </div>
+                        
+                        <pre v-else class="whitespace-pre-wrap text-green-400 leading-relaxed">{{ agent.last_result }}</pre>
+                    </div>
+
+                    <!-- 快捷指令栏 -->
+                    <div class="flex gap-2 mb-2">
+                        <button @click="quickCmd(agent.id, 'whoami')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-xs py-1 rounded text-gray-300">Whoami</button>
+                        <button @click="quickCmd(agent.id, 'dir')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-xs py-1 rounded text-gray-300">Dir</button>
+                        <button @click="quickCmd(agent.id, 'screenshot')" class="flex-1 bg-purple-900/50 hover:bg-purple-800 text-purple-300 text-xs py-1 rounded border border-purple-800">📷 截屏</button>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" v-model="commandInputs[agent.id]" @keyup.enter="sendCommand(agent.id)"
+                               placeholder="输入命令..." class="bg-gray-900 text-white text-sm px-3 py-2 rounded border border-gray-600 flex-1 focus:outline-none focus:border-blue-500">
+                        <button @click="sendCommand(agent.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium">发送</button>
+                    </div>
+                </div>
+            </transition-group>
+        </div>
+
+        <!-- 图片预览模态框 -->
+        <transition name="modal">
+            <div v-if="previewImage" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" @click="previewImage = null">
+                <img :src="previewImage" class="max-w-full max-h-full rounded shadow-2xl border border-gray-700">
+                <p class="absolute bottom-10 text-gray-400 text-sm">点击任意处关闭</p>
+            </div>
+        </transition>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    agents: [],
+                    commandInputs: {},
+                    timer: null,
+                    previewImage: null // 用于存储当前全屏预览的图片
+                }
+            },
+            computed: {
+                activeCount() { return this.agents.filter(a => a.status === 'active').length }
+            },
+            mounted() {
+                this.fetchAgents()
+                this.timer = setInterval(this.fetchAgents, 1000)
+            },
+            methods: {
+                async fetchAgents() {
+                    try {
+                        const res = await fetch('/api/admin/agents')
+                        this.agents = await res.json()
+                    } catch (e) {}
+                },
+                async sendCommand(id) {
+                    const cmd = this.commandInputs[id]
+                    if (!cmd) return
+                    await fetch('/api/admin/cmd', { method: 'POST', body: JSON.stringify({ id: id, cmd: cmd }) })
+                    this.commandInputs[id] = '' 
+                },
+                async quickCmd(id, cmd) {
+                    await fetch('/api/admin/cmd', { method: 'POST', body: JSON.stringify({ id: id, cmd: cmd }) })
+                },
+                async deleteAgent(id) {
+                    if(!confirm('确定删除?')) return;
+                    this.agents = this.agents.filter(a => a.id !== id);
+                    await fetch(`/api/admin/delete?id=${id}`)
+                },
+                showImage(src) {
+                    this.previewImage = src
+                },
+                formatTime(timestamp) {
+                    const diff = Math.floor(Date.now() / 1000) - timestamp
+                    if (diff < 60) return `${diff}秒前`
+                    if (diff < 3600) return `${Math.floor(diff/60)}分钟前`
+                    return new Date(timestamp * 1000).toLocaleTimeString()
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
