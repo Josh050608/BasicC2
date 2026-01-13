@@ -1,54 +1,43 @@
 # --- Go 语言通用 ---
-# 编译生成的二进制文件 (Linux/macOS)
-# 注意：使用 /build/ 目录存放编译产物，不要直接忽略目录名
+# 忽略特定的编译产物目录
 /build/
-/server
-/agent
-/loader
 
-# 编译生成的二进制文件 (Windows)
+# 显式忽略根目录下的二进制文件（如果它们不在 build 目录中）
+/server
+/loader
+# 注意：这里去掉了 /agent，因为它是你的源码目录
+# 如果你曾经编译出名为 agent 的二进制，建议改为 /agent_bin 
+
+# Windows 二进制
 *.exe
 *.dll
 *.so
 *.dylib
 
-# 测试与性能分析文件
+# 测试与性能分析
 *.test
 *.prof
-
-# 本地依赖工作区 (如果使用了 go work)
 go.work
 
 # --- C2 项目特定 ---
-# 1. 编译产物与载荷
+# 1. 载荷文件
 payload.bin
-agent-*.exe
-loader-*.exe
 
 # 2. 运行日志
 *.log
-c2.log
 
-# 3. 敏感配置与凭证 (非常重要！不要上传到 GitHub)
-# Cloudflare Tunnel 配置文件 (包含 UUID)
+# 3. 敏感配置 (保持私有，绝对不要上传)
 config.yml
-
-# Cloudflare 凭证文件
-*.json
 *.pem
-
-# 任何包含密钥的临时文件
 secrets.txt
-key.txt
+*.json
 
-# --- IDE 编辑器配置 ---
-# VS Code
+# --- IDE 配置 ---
+# 注意：如果你希望团队共享 VS Code 设置（如我们之前改的 GOOS 设置），
+# 建议不要忽略 .vscode/ 中的 settings.json
 .vscode/
-
-# JetBrains (Goland)
-.idea/
-*.iml
+# 但可以忽略工作区状态
+.vscode/*.log
 
 # --- 操作系统文件 ---
 .DS_Store
-Thumbs.db
