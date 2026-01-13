@@ -23,6 +23,9 @@ func main() {
 	http.HandleFunc("/api/admin/cmd", handler.SendCommand)
 	http.HandleFunc("/api/admin/delete", handler.DeleteAgent)
 
+	// [新增] DGA 信息接口
+    http.HandleFunc("/api/admin/dga", handlers.ApiGetCurrentDGA)
+
 	// 3. 静态文件服务（index.html, payload.bin）
 	// 从 web/ 目录提供静态文件
 	http.Handle("/", http.FileServer(http.Dir("./web")))

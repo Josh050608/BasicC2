@@ -50,7 +50,7 @@ echo [2/3] ÕıÔÚ±àÒë Agent (Windows °æ±¾)...
 if not exist build mkdir build
 set GOOS=windows
 set GOARCH=amd64
-go build -ldflags "-s -w -H=windowsgui" -o build/agent.exe cmd/agent/main.go
+go build -ldflags "-s -w " -o build/agent.exe cmd/agent/main.go
 if errorlevel 1 (
     echo [´íÎó] Agent ±àÒëÊ§°Ü
     exit /b 1
@@ -64,7 +64,7 @@ echo [3/3] ÕıÔÚ±àÒë Loader (Windows °æ±¾)...
 if not exist build mkdir build
 set GOOS=windows
 set GOARCH=amd64
-go build -ldflags "-s -w -H=windowsgui" -o build/loader.exe cmd/loader/main.go
+go build -ldflags "-s -w " -o build/loader.exe cmd/loader/main.go
 if errorlevel 1 (
     echo [´íÎó] Loader ±àÒëÊ§°Ü
     exit /b 1
