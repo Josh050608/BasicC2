@@ -1,8 +1,10 @@
 # --- Go 语言通用 ---
 # 编译生成的二进制文件 (Linux/macOS)
-server
-agent
-loader
+# 注意：使用 /build/ 目录存放编译产物，不要直接忽略目录名
+/build/
+/server
+/agent
+/loader
 
 # 编译生成的二进制文件 (Windows)
 *.exe
