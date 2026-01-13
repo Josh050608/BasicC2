@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package persistence
 
 import (
@@ -9,8 +12,8 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// Install 实现持久化：复制到用户目录并添加注册表自启动
-func Install() error {
+// installImpl 实现持久化：复制到用户目录并添加注册表自启动
+func installImpl() error {
 	// 获取当前可执行文件路径
 	exePath, err := os.Executable()
 	if err != nil {
