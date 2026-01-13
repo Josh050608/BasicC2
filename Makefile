@@ -21,7 +21,10 @@ AGENT_MAIN=./cmd/agent/main.go
 LOADER_NAME=loader.exe
 LOADER_MAIN=./cmd/loader/main.go
 
-# Windows 交叉编译环境变量
+# 交叉编译环境变量
+# Server 目标: Ubuntu 22.04 ARM64
+LINUX_ENV=GOOS=linux GOARCH=arm64 CGO_ENABLED=0
+# Agent/Loader 目标: Windows x64
 WINDOWS_ENV=GOOS=windows GOARCH=amd64
 
 .PHONY: all server agent loader clean help
@@ -30,11 +33,11 @@ WINDOWS_ENV=GOOS=windows GOARCH=amd64
 all: server agent loader
 	@echo "所有组件编译完成！"
 
-# 编译 Server (Linux/macOS)
+# 编译 Server (Linux)
 server:
-	@echo "正在编译 Server..."
+	@echo "正在编译 Server (Linux)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) -o $(BUILD_DIR)/$(SERVER_NAME) $(SERVER_MAIN)
+	$(LINUX_ENV) $(GOBUILD) -ldflags "-s -w" -o $(BUILD_DIR)/$(SERVER_NAME) $(SERVER_MAIN)
 	@echo "Server 编译完成: $(BUILD_DIR)/$(SERVER_NAME)"
 
 # 编译 Agent (Windows)
