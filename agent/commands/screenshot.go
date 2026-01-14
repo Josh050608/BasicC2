@@ -1,3 +1,5 @@
+//经测试截图功能有BUG
+
 package commands
 
 import (
