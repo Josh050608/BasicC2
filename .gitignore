@@ -1,43 +1,31 @@
-# --- Go 语言通用 ---
-# 忽略特定的编译产物目录
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE Configs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Go Build Output
 /build/
-
-# 显式忽略根目录下的二进制文件（如果它们不在 build 目录中）
-/server
-/loader
-# 注意：这里去掉了 /agent，因为它是你的源码目录
-# 如果你曾经编译出名为 agent 的二进制，建议改为 /agent_bin 
-
-# Windows 二进制
 *.exe
 *.dll
 *.so
 *.dylib
-
-# 测试与性能分析
 *.test
-*.prof
-go.work
+*.out
 
-# --- C2 项目特定 ---
-# 1. 载荷文件
+# Go Workspace
+go.work
+go.work.sum
+
+# Logs and Temporary Files
+*.log
 payload.bin
 
-# 2. 运行日志
-*.log
-
-# 3. 敏感配置 (保持私有，绝对不要上传)
-config.yml
-*.pem
-secrets.txt
-*.json
-
-# --- IDE 配置 ---
-# 注意：如果你希望团队共享 VS Code 设置（如我们之前改的 GOOS 设置），
-# 建议不要忽略 .vscode/ 中的 settings.json
-.vscode/
-# 但可以忽略工作区状态
-.vscode/*.log
-
-# --- 操作系统文件 ---
-.DS_Store
+# Go Binaries (Prevent binaries in root, but keep source folders)
+/server
+/loader
+# Note: /agent is a source folder, do not ignore it
