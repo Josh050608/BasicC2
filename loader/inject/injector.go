@@ -1,5 +1,6 @@
 //go:build windows
 // +build windows
+//进程注入存在问题，执行命令会导致受害者桌面崩溃，貌似是因为agent.exe太大
 
 package inject
 
