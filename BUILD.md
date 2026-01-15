@@ -29,18 +29,14 @@ make deps
 
 ### 2.2 执行编译
 
-**Linux / macOS (使用 Make):**
+**使用 Makefile 编译:**
 
 ```bash
 # 一键编译所有组件 (Server/ARM, Agent/Win64, Loader/Win64)
 make all
-```
 
-**Windows (使用脚本):**
-
-```powershell
-# PowerShell
-.\build.ps1
+# 或查看所有可用命令
+make help
 ```
 
 **编译产物 (`build/` 目录):**

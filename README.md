@@ -86,14 +86,14 @@ BasicC2/
 
 ### 编译与部署
 
-本项目提供自动化编译脚本，支持多平台编译。
+本项目使用 Makefile 进行编译，支持在 Linux 和 macOS 上构建所有组件。
 
 **详细编译指南请参考：[BUILD.md](BUILD.md)**
 
 简要步骤：
 1.  准备 Go 1.20+ 环境。
-2.  **Linux/macOS**: 运行 `make all`
-3.  **Windows**: 运行 `.\build.ps1`
+2.  运行 `make all` 编译所有组件。
+3.  运行 `make help` 查看所有可用命令。
 4.  编译产物生成在 `build/` 目录下。
 
 ### 运行
