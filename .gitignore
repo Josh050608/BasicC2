@@ -1,52 +1,30 @@
-# --- Go 语言通用 ---
-# 编译生成的二进制文件 (Linux/macOS)
-server
-agent
-loader
-
-# 编译生成的二进制文件 (Windows)
+# Binaries
 *.exe
 *.dll
 *.so
 *.dylib
 
-# 测试与性能分析文件
+# Test output
+*.out
 *.test
-*.prof
+coverage.txt
 
-# 本地依赖工作区 (如果使用了 go work)
-go.work
+# Build directory
+build/
 
-# --- C2 项目特定 ---
-# 1. 编译产物与载荷
-payload.bin
-agent-*.exe
-loader-*.exe
-
-# 2. 运行日志
-*.log
-c2.log
-
-# 3. 敏感配置与凭证 (非常重要！不要上传到 GitHub)
-# Cloudflare Tunnel 配置文件 (包含 UUID)
-config.yml
-
-# Cloudflare 凭证文件
-*.json
-*.pem
-
-# 任何包含密钥的临时文件
-secrets.txt
-key.txt
-
-# --- IDE 编辑器配置 ---
-# VS Code
-.vscode/
-
-# JetBrains (Goland)
-.idea/
-*.iml
-
-# --- 操作系统文件 ---
+# OS Specific
 .DS_Store
 Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Executables (generated from cmd/)
+# agent
+# loader
+# server
+
+# Local go workspace
+go.work
+go.work.sum
