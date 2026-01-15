@@ -1,0 +1,55 @@
+{
+    // --- 关键修复：设置全局 Go 工具环境为 Windows ---
+    "go.toolsEnvVars": {
+        "GOOS": "windows",
+        "GOARCH": "amd64"
+    },
+    "go.useLanguageServer": true,
+    "gopls": {
+        // --- 核心修复：设置 gopls 的构建环境 ---
+        "build.env": {
+            "GOOS": "windows",
+            "GOARCH": "amd64"
+        },
+        // 建议启用该配置以更好地处理导入
+        "build.buildFlags": [
+            "-tags=windows"
+        ],
+        "ui.diagnostic.analyses": {
+            "unusedparams": false,
+            "shadow": false,
+            "unusedwrite": false
+        },
+        "ui.diagnostic.importShortcut": "Both", // 建议改为 Both 以便跳转
+        "ui.diagnostic.staticcheck": false,
+        "directoryFilters": [
+            "-**/node_modules",
+            "-**/vendor",
+            "-**/build"
+        ],
+        "symbolMatcher": "FastFuzzy",
+        "symbolStyle": "Dynamic",
+        "completeUnimported": true,
+        "completionDocumentation": true,
+        "deepCompletion": true,
+        "memoryMode": "Normal"
+    },
+    // 格式化和编辑器配置保持不变
+    "editor.formatOnSave": true,
+    "[go]": {
+        "editor.defaultFormatter": "golang.go",
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "files.associations": {
+        "*.go": "go"
+    },
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/build/**": true,
+        "**/vendor/**": true
+    }
+}

