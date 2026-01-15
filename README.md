@@ -84,42 +84,30 @@ BasicC2/
 
 ## 快速开始
 
-### 编译
+### 编译与部署
 
-```bash
-# 编译 Server (Linux/macOS)
-go build -o server cmd/server/main.go
+本项目提供自动化编译脚本，支持多平台编译。
 
-# 编译 Agent (Windows)
-GOOS=windows GOARCH=amd64 go build -o agent.exe cmd/agent/main.go
+**详细编译指南请参考：[BUILD.md](BUILD.md)**
 
-# 编译 Loader (Windows)
-GOOS=windows GOARCH=amd64 go build -o loader.exe cmd/loader/main.go
-
-# 或使用 Makefile
-make all        # 编译所有组件
-make server     # 只编译 Server
-make agent      # 只编译 Agent
-make loader     # 只编译 Loader
-make clean      # 清理编译产物
-```
+简要步骤：
+1.  准备 Go 1.20+ 环境。
+2.  **Linux/macOS**: 运行 `make all`
+3.  **Windows**: 运行 `.\build.ps1`
+4.  编译产物生成在 `build/` 目录下。
 
 ### 运行
 
 1. **启动 Server**
 ```bash
-./server
-# 访问 http://localhost:8080 查看 Web 控制台
+# 在 Linux (ARM) 服务器上运行
+./build/server
+# 访问 http://ip:8080 查看 Web 控制台
 ```
 
-2. **生成 Agent Payload**
-```bash
-# 先编译 Agent
-GOOS=windows GOARCH=amd64 go build -o agent.exe cmd/agent/main.go
-
-# 将 agent.exe 转换为 payload.bin (Shellcode)
-# 注意：需要使用 pe2shc 等工具转换
-```
+2. **生成与测试**
+   - `build/agent.exe` 是原始后门程序，用于生成 Shellcode 或测试功能。
+   - `build/loader.exe` 是最终投放的加载器（通常不需要参数直接运行）。
 
 3. **运行 Loader**
 ```bash
