@@ -1,0 +1,30 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test output
+*.out
+*.test
+coverage.txt
+
+# Build directory
+build/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.vscode/
+.idea/
+
+# Executables (generated from cmd/)
+# agent
+# loader
+# server
+
+# Local go workspace
+go.work
+go.work.sum
