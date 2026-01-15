@@ -91,7 +91,7 @@ func (s *SyscallStub) createStub(ssn uint16) (uintptr, error) {
 	return addr, nil
 }
 
-// getSSN 读取 ntdll 导出函数的前几个字节来获取 SSN
+// getSSN 读取 ntdll 导出函数的前几个字节来获取 SSN，支持 Halo's Gate 技术绕过 Hook
 func (s *SyscallStub) getSSN(funcName string) (uint16, error) {
 	// 获取函数地址
 	procAddr, err := syscall.GetProcAddress(syscall.Handle(s.ntdllHandle), funcName)
@@ -99,20 +99,43 @@ func (s *SyscallStub) getSSN(funcName string) (uint16, error) {
 		return 0, err
 	}
 
-	// 读取前几个字节 (期望: 4C 8B D1 B8 <SSN> ...)
-	data := (*[8]byte)(unsafe.Pointer(procAddr))[:]
+	// Halo's Gate 实现：检查自身及邻居函数
+	// 搜索范围：上下 32 个 Stub (32 * 32 bytes)
+	for i := 0; i < 32; i++ {
+		// 1. 检查当前地址往下偏移 (Target + i * 32)
+		// 如果找到干净的，说明 TargetSSN = CleanSSN - i
+		// 当 i=0 时，即检查自身 (Hell's Gate)
+		currentAddr := procAddr + uintptr(i*32)
+		if ssn, ok := checkStub(currentAddr); ok {
+			return ssn - uint16(i), nil
+		}
 
-	// Check for "mov r10, rcx; mov eax, ..."
+		// 2. 检查当前地址往上偏移 (Target - i * 32)
+		// 如果找到干净的，说明 TargetSSN = CleanSSN + i
+		currentAddr = procAddr - uintptr(i*32)
+		if ssn, ok := checkStub(currentAddr); ok {
+			return ssn + uint16(i), nil
+		}
+	}
+
+	return 0, fmt.Errorf("Halo's Gate failed to find SSN for %s (Hooks too deep)", funcName)
+}
+
+// checkStub 检查指定地址是否是一条干净的 Syscall Stub (mov r10, rcx; mov eax, SSN)
+func checkStub(addr uintptr) (uint16, bool) {
+	// 读取前 8 字节
+	data := (*[8]byte)(unsafe.Pointer(addr))[:]
+
+	// 检查特征:
+	// 4C 8B D1 B8 (mov r10, rcx; mov eax, ...)
 	if data[0] == 0x4C && data[1] == 0x8B && data[2] == 0xD1 && data[3] == 0xB8 {
-		ssn := binary.LittleEndian.Uint16(data[4:6])
-		return ssn, nil
+		// 取出 SSN (第 5, 6 字节)
+		// 校验 byte 6, 7 是否为 0 (SSN 高位通常为0)
+		if data[6] == 0x00 && data[7] == 0x00 {
+			return binary.LittleEndian.Uint16(data[4:6]), true
+		}
 	}
-
-	if data[0] == 0xE9 {
-		return 0, fmt.Errorf("detected hook on %s", funcName)
-	}
-
-	return 0, fmt.Errorf("unknown pattern for %s", funcName)
+	return 0, false
 }
 
 // Wrappers
